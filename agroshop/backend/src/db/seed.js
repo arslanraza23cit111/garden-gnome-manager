@@ -194,7 +194,7 @@ await api("/sales", {
 await api("/sales", {
   customer_id: 5,
   date: d(0),
-  paid_amount: 12800,
+  paid_amount: 11030,
   payment_method: "cash",
   items: [
     { product_id: 6, quantity: 4, rate: 1150 },
