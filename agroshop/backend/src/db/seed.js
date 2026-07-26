@@ -88,7 +88,18 @@ const insertSupplier = db.prepare(
 );
 for (const r of supplierRows) insertSupplier.run(...r);
 
+// ---- opening cash & bank (owner's capital) --------------------------------
+// Cash and bank balances are ledger-derived, so opening money is a ledger entry.
+const openingLedger = db.prepare(
+  `INSERT INTO ledger_entries (date, account_type, account_ref_id, debit, credit, source_type, description)
+   VALUES (?, ?, NULL, ?, ?, 'opening', ?)`,
+);
+openingLedger.run(d(-30), "cash", 400000, 0, "Opening cash in hand");
+openingLedger.run(d(-30), "bank", 1500000, 0, "Opening bank balance");
+openingLedger.run(d(-30), "capital", 0, 1900000, "Owner's capital");
+
 // ---- transactions through the real API ------------------------------------
+
 const server = createApp().listen(0);
 const port = server.address().port;
 const base = `http://127.0.0.1:${port}/api`;
