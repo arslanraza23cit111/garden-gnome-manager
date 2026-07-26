@@ -81,10 +81,8 @@
     size: A4;
     margin: 12mm;
   }
-  .print-thermal-mode @page {
-    margin: 3mm;
-  }
 }
+
 
 /* Thermal receipt: narrow single column, monospace */
 .receipt {
