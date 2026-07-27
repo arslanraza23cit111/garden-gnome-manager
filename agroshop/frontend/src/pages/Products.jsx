@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { Layers, Plus } from "lucide-react";
+import { Layers, Plus, Trash2 } from "lucide-react";
 import { api, money, qty } from "../api/client.js";
 import DataTable from "../components/DataTable.jsx";
 import Modal, { Alert, Field } from "../components/Modal.jsx";
 
 const UNITS = ["kg", "bag", "litre", "bottle", "packet", "piece"];
+const emptySellingUnit = (patch = {}) => ({
+  id: null,
+  unit_label: "",
+  conversion_factor: "",
+  sale_price: "",
+  is_default: false,
+  ...patch,
+});
+
 const EMPTY = {
   name: "",
   company: "",
@@ -17,6 +26,7 @@ const EMPTY = {
   retail_price: "",
   wholesale_price: "",
   min_stock_level: "",
+  selling_units: [emptySellingUnit({ is_default: true })],
 };
 
 export default function Products() {
@@ -37,11 +47,60 @@ export default function Products() {
     setEditing("new");
     setFormError("");
   };
-  const openEdit = (p) => {
-    setForm({ ...EMPTY, ...p });
+  const openEdit = async (p) => {
+    const units = await api.get(`/products/${p.id}/units`).catch(() => []);
+    setForm({
+      ...EMPTY,
+      ...p,
+      selling_units: units.length
+        ? units.map((u) => ({ ...u, is_default: Boolean(u.is_default), is_active: u.is_active !== 0 }))
+        : [emptySellingUnit({ unit_label: p.unit, conversion_factor: 1, sale_price: p.sale_price, is_default: true })],
+    });
     setEditing(p.id);
     setFormError("");
   };
+
+  const setUnit = (idx, patch) =>
+    setForm((f) => ({
+      ...f,
+      selling_units: f.selling_units.map((u, i) =>
+        i === idx
+          ? { ...u, ...patch, ...(patch.is_default ? { is_default: true } : {}) }
+          : patch.is_default
+            ? { ...u, is_default: false }
+            : u,
+      ),
+    }));
+
+  const removeUnit = async (idx) => {
+    const unit = form.selling_units[idx];
+    if (unit.id && editing !== "new") {
+      await api.delete(`/products/${editing}/units/${unit.id}`);
+    }
+    setForm((f) => {
+      const next = f.selling_units.filter((_, i) => i !== idx);
+      if (next.length && !next.some((u) => u.is_default)) next[0] = { ...next[0], is_default: true };
+      return { ...f, selling_units: next };
+    });
+  };
+
+  async function saveUnits(productId) {
+    const units = form.selling_units
+      .filter((u) => u.is_active !== false)
+      .filter((u) => String(u.unit_label || "").trim());
+    for (const [i, u] of units.entries()) {
+      if (!(Number(u.conversion_factor) > 0)) throw new Error(`Unit ${i + 1}: conversion factor must be more than zero`);
+      if (Number(u.sale_price) < 0) throw new Error(`Unit ${i + 1}: price cannot be negative`);
+      if (!u.id) {
+        await api.post(`/products/${productId}/units`, {
+          unit_label: u.unit_label,
+          conversion_factor: Number(u.conversion_factor),
+          sale_price: Number(u.sale_price || 0),
+          is_default: Boolean(u.is_default),
+        });
+      }
+    }
+  }
 
   async function save() {
     setFormError("");
@@ -49,9 +108,16 @@ export default function Products() {
     if (!form.unit) return setFormError("Unit is required");
     if (Number(form.sale_price) < 0 || Number(form.purchase_price) < 0)
       return setFormError("Prices cannot be negative");
+    if (!form.selling_units.some((u) => String(u.unit_label || "").trim()))
+      return setFormError("Add at least one selling unit");
     try {
-      if (editing === "new") await api.post("/products", form);
-      else await api.put(`/products/${editing}`, form);
+      if (editing === "new") {
+        const created = await api.post("/products", form);
+        await saveUnits(created.id);
+      } else {
+        await api.put(`/products/${editing}`, form);
+        await saveUnits(editing);
+      }
       setEditing(null);
       load();
     } catch (e) {
@@ -203,6 +269,98 @@ export default function Products() {
                 />
               </Field>
             ))}
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-700">Selling units</h3>
+              <button
+                className="btn-ghost px-2 py-1 text-xs"
+                onClick={() =>
+                  setForm((f) => ({
+                    ...f,
+                    selling_units: [
+                      ...f.selling_units,
+                      emptySellingUnit({ sale_price: f.sale_price || "", is_default: !f.selling_units.length }),
+                    ],
+                  }))
+                }
+              >
+                <Plus size={14} /> Add unit
+              </button>
+            </div>
+            <div className="table-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Label</th>
+                    <th className="text-right">Base factor</th>
+                    <th className="text-right">Price</th>
+                    <th className="text-center">Default</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.selling_units.map((u, idx) => (
+                    <tr key={u.id ?? idx}>
+                      <td>
+                        <input
+                          className="input"
+                          value={u.unit_label ?? ""}
+                          placeholder="50kg bag"
+                          disabled={!!u.id}
+                          onChange={(e) => setUnit(idx, { unit_label: e.target.value })}
+                        />
+                      </td>
+                      <td className="w-32">
+                        <input
+                          className="input text-right"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={u.conversion_factor ?? ""}
+                          disabled={!!u.id}
+                          onChange={(e) => setUnit(idx, { conversion_factor: e.target.value })}
+                        />
+                      </td>
+                      <td className="w-32">
+                        <input
+                          className="input text-right"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={u.sale_price ?? ""}
+                          disabled={!!u.id}
+                          onChange={(e) => setUnit(idx, { sale_price: e.target.value })}
+                        />
+                      </td>
+                      <td className="text-center">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(u.is_default)}
+                          disabled={!!u.id}
+                          onChange={(e) => setUnit(idx, { is_default: e.target.checked })}
+                        />
+                      </td>
+                      <td className="w-10 text-right">
+                        <button
+                          className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                          onClick={() => removeUnit(idx)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!form.selling_units.length && (
+                    <tr>
+                      <td colSpan={5} className="py-4 text-center text-slate-500">
+                        Add at least one selling unit.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </Modal>

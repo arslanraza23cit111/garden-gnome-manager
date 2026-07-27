@@ -7,6 +7,46 @@ import { logActivity } from "../lib/auth.js";
 
 const router = Router();
 
+function resolveSaleUnit(db, item, idx) {
+  const hasMultiUnitInput = item.product_unit_id !== undefined || item.quantity_in_unit !== undefined;
+  const product = db.prepare(`SELECT * FROM products WHERE id = ?`).get(item.product_id);
+  if (!product) throw new ValidationError(`Line ${idx + 1}: product not found`);
+
+  if (!hasMultiUnitInput) {
+    const qty = num(item.quantity);
+    const unit =
+      db
+        .prepare(
+          `SELECT * FROM product_units
+            WHERE product_id = ? AND is_active = 1
+            ORDER BY is_default DESC, id ASC LIMIT 1`,
+        )
+        .get(product.id) ?? null;
+    return {
+      quantity: qty,
+      unit_label: unit?.unit_label ?? product.unit,
+      conversion_factor: unit?.conversion_factor ?? 1,
+      quantity_in_unit: qty,
+      quantity_base: qty,
+    };
+  }
+
+  required(item.product_unit_id, `Line ${idx + 1}: unit`);
+  const quantityInUnit = num(item.quantity_in_unit);
+  const unit = db
+    .prepare(`SELECT * FROM product_units WHERE id = ? AND product_id = ? AND is_active = 1`)
+    .get(item.product_unit_id, product.id);
+  if (!unit) throw new ValidationError(`Line ${idx + 1}: active product unit not found`);
+  const quantityBase = Math.round(quantityInUnit * unit.conversion_factor);
+  return {
+    quantity: quantityBase,
+    unit_label: unit.unit_label,
+    conversion_factor: unit.conversion_factor,
+    quantity_in_unit: quantityInUnit,
+    quantity_base: quantityBase,
+  };
+}
+
 router.get("/", (req, res) => {
   res.json(
     getDb()
@@ -59,15 +99,21 @@ router.post("/", (req, res) => {
   if (!customer) throw new ValidationError("Customer not found");
 
   const lines = items.map((it, idx) => {
-    const qty = num(it.quantity);
-    const rate = num(it.rate);
     if (!it.product_id) throw new ValidationError(`Line ${idx + 1}: choose a product`);
+    const unitSnapshot = resolveSaleUnit(db, it, idx);
+    const qty = unitSnapshot.quantity_in_unit;
+    const rate = num(it.rate);
     if (!(qty > 0)) throw new ValidationError(`Line ${idx + 1}: quantity must be greater than zero`);
+    if (!(unitSnapshot.quantity_base > 0)) throw new ValidationError(`Line ${idx + 1}: base quantity must be greater than zero`);
     if (rate < 0) throw new ValidationError(`Line ${idx + 1}: rate cannot be negative`);
     const discount = num(it.discount);
     return {
       product_id: Number(it.product_id),
-      quantity: qty,
+      quantity: unitSnapshot.quantity_base,
+      unit_label: unitSnapshot.unit_label,
+      conversion_factor: unitSnapshot.conversion_factor,
+      quantity_in_unit: unitSnapshot.quantity_in_unit,
+      quantity_base: unitSnapshot.quantity_base,
       rate,
       discount,
       line_total: round2(qty * rate - discount),
@@ -76,7 +122,7 @@ router.post("/", (req, res) => {
 
   // Pre-flight stock check so nothing is written when stock is short.
   const wanted = new Map();
-  for (const l of lines) wanted.set(l.product_id, (wanted.get(l.product_id) ?? 0) + l.quantity);
+  for (const l of lines) wanted.set(l.product_id, (wanted.get(l.product_id) ?? 0) + l.quantity_base);
   for (const [product_id, qty] of wanted) {
     const row = db
       .prepare(`SELECT COALESCE(SUM(quantity),0) AS q FROM product_batches WHERE product_id = ?`)
@@ -128,25 +174,30 @@ router.post("/", (req, res) => {
     const saleId = Number(info.lastInsertRowid);
 
     const itemStmt = db.prepare(
-      `INSERT INTO sale_items (sale_id, product_id, batch_id, batch_number, quantity, rate,
-                               discount, cost_rate, line_total)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sale_items (sale_id, product_id, batch_id, batch_number, quantity,
+                               unit_label, conversion_factor, quantity_in_unit, quantity_base,
+                               rate, discount, cost_rate, line_total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const l of lines) {
       // FEFO allocation may split one line across batches -> one row per batch.
-      const allocation = decreaseStockFEFO({ product_id: l.product_id, quantity: l.quantity });
+      const allocation = decreaseStockFEFO({ product_id: l.product_id, quantity: l.quantity_base });
       for (const a of allocation) {
-        const share = a.quantity / l.quantity;
+        const share = a.quantity / l.quantity_base;
         itemStmt.run(
           saleId,
           l.product_id,
           a.batch_id,
           a.batch_number,
           a.quantity,
+          l.unit_label,
+          l.conversion_factor,
+          l.quantity_in_unit * share,
+          a.quantity,
           l.rate,
           round2(l.discount * share),
           a.cost_rate,
-          round2(a.quantity * l.rate - l.discount * share),
+          round2(l.line_total * share),
         );
       }
     }

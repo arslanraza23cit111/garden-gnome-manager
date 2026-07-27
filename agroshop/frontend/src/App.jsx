@@ -8,6 +8,10 @@ import Purchases from "./pages/Purchases.jsx";
 import Sales from "./pages/Sales.jsx";
 import Customers from "./pages/Customers.jsx";
 import Suppliers from "./pages/Suppliers.jsx";
+import PurchaseReturns from "./pages/PurchaseReturns.jsx";
+import SaleReturns from "./pages/SaleReturns.jsx";
+import Payments from "./pages/Payments.jsx";
+import Expenses from "./pages/Expenses.jsx";
 import ComingSoon from "./pages/ComingSoon.jsx";
 
 function Shell({ children }) {
@@ -33,13 +37,13 @@ export default function App() {
         <Route path="/sales" element={<Sales />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/suppliers" element={<Suppliers />} />
+        <Route path="/purchase-returns" element={<PurchaseReturns />} />
+        <Route path="/sale-returns" element={<SaleReturns />} />
+        <Route path="/payments" element={<Payments />} />
+        <Route path="/expenses" element={<Expenses />} />
         <Route
           path="/accounts"
           element={<ComingSoon title="Accounts & Ledger" phase={3} detail="General ledger, trial balance, P&L and balance sheet, all derived from the ledger_entries table that Phase 1 is already writing." />}
-        />
-        <Route
-          path="/expenses"
-          element={<ComingSoon title="Expenses" phase={2} detail="Daily shop expenses (fuel, loading, electricity, staff) posted straight to the cash/bank ledger." />}
         />
         <Route
           path="/reports"

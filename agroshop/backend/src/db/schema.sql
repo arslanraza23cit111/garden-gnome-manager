@@ -37,6 +37,17 @@ CREATE TABLE IF NOT EXISTS products (
   created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS product_units (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id),
+  unit_label TEXT NOT NULL,
+  conversion_factor INTEGER NOT NULL,
+  sale_price REAL NOT NULL,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Stock quantity is tracked HERE, per batch + expiry. Never on products.
 CREATE TABLE IF NOT EXISTS product_batches (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,6 +113,10 @@ CREATE TABLE IF NOT EXISTS purchase_items (
   batch_number  TEXT NOT NULL DEFAULT '-',
   expiry_date   TEXT,
   quantity      REAL NOT NULL,
+  unit_label    TEXT,
+  conversion_factor INTEGER,
+  quantity_in_unit REAL,
+  quantity_base INTEGER,
   rate          REAL NOT NULL,
   discount      REAL NOT NULL DEFAULT 0,
   tax           REAL NOT NULL DEFAULT 0,
@@ -132,6 +147,10 @@ CREATE TABLE IF NOT EXISTS sale_items (
   batch_id     INTEGER REFERENCES product_batches(id),
   batch_number TEXT NOT NULL DEFAULT '-',
   quantity     REAL NOT NULL,
+  unit_label    TEXT,
+  conversion_factor INTEGER,
+  quantity_in_unit REAL,
+  quantity_base INTEGER,
   rate         REAL NOT NULL,
   discount     REAL NOT NULL DEFAULT 0,
   cost_rate    REAL NOT NULL DEFAULT 0,   -- for profit reports

@@ -4,10 +4,14 @@ import { getDb } from "./db/connection.js";
 import { requireAuth } from "./lib/auth.js";
 import authRoutes from "./routes/auth.js";
 import productRoutes from "./routes/products.js";
+import productUnitRoutes from "./routes/productUnits.js";
 import purchaseRoutes from "./routes/purchases.js";
 import saleRoutes from "./routes/sales.js";
 import customerRoutes from "./routes/customers.js";
 import supplierRoutes from "./routes/suppliers.js";
+import returnsRoutes from "./routes/returns.js";
+import paymentRoutes from "./routes/payments.js";
+import expenseRoutes from "./routes/expenses.js";
 import dashboardRoutes from "./routes/dashboard.js";
 
 export function createApp() {
@@ -20,11 +24,15 @@ export function createApp() {
   app.use("/api/auth", authRoutes);
 
   // Everything below requires a local sign-in.
+  app.use("/api/products/:productId/units", requireAuth, productUnitRoutes);
   app.use("/api/products", requireAuth, productRoutes);
   app.use("/api/purchases", requireAuth, purchaseRoutes);
   app.use("/api/sales", requireAuth, saleRoutes);
   app.use("/api/customers", requireAuth, customerRoutes);
   app.use("/api/suppliers", requireAuth, supplierRoutes);
+  app.use("/api", requireAuth, returnsRoutes);
+  app.use("/api/payments", requireAuth, paymentRoutes);
+  app.use("/api/expenses", requireAuth, expenseRoutes);
   app.use("/api/dashboard", requireAuth, dashboardRoutes);
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "Unknown endpoint" }));

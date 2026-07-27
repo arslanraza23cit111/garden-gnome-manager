@@ -14,7 +14,7 @@ const tmp = path.join(os.tmpdir(), `agroshop-test-${Date.now()}.db`);
 process.env.AGROSHOP_DB_FILE = tmp;
 
 const { createApp } = await import("../src/app.js");
-const { getDb } = await import("../src/db/connection.js");
+const { getDb, closeDb } = await import("../src/db/connection.js");
 const { hashPassword } = await import("../src/lib/auth.js");
 
 let server;
@@ -43,6 +43,12 @@ const bal = (type, ref) =>
         WHERE account_type = ? AND (? IS NULL OR account_ref_id = ?)`,
     )
     .get(type, ref ?? null, ref ?? null).b;
+const createProduct = (name, unit = "piece", purchasePrice = 10, salePrice = 15) => {
+  const info = getDb()
+    .prepare(`INSERT INTO products (name, unit, purchase_price, sale_price, min_stock_level) VALUES (?, ?, ?, ?, 0)`)
+    .run(name, unit, purchasePrice, salePrice);
+  return Number(info.lastInsertRowid);
+};
 
 before(async () => {
   const db = getDb();
@@ -64,6 +70,7 @@ before(async () => {
 
 after(() => {
   server?.close();
+  closeDb();
   for (const f of [tmp, `${tmp}-wal`, `${tmp}-shm`]) if (fs.existsSync(f)) fs.rmSync(f);
 });
 
@@ -88,6 +95,41 @@ test("purchase increases stock and supplier payable", async () => {
   assert.equal(bal("cash"), -2000);
 });
 
+test("purchasing 2 large units adds their exact base quantity", async () => {
+  const productId = createProduct("Bagged Urea Multi", "g", 4000, 4500);
+  const unit = await post(`/products/${productId}/units`, {
+    unit_label: "50kg bag",
+    conversion_factor: 50000,
+    sale_price: 4500,
+    is_default: true,
+  });
+  assert.equal(unit.status, 201);
+
+  const before = stockOf(productId);
+  const purchase = await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [
+      {
+        product_id: productId,
+        product_unit_id: unit.body.id,
+        quantity_in_unit: 2,
+        batch_number: "MU-BAG",
+        expiry_date: "2030-01-01",
+        rate: 4000,
+      },
+    ],
+  });
+  assert.equal(purchase.status, 201);
+  assert.equal(stockOf(productId), before + 100000);
+  const item = getDb().prepare(`SELECT * FROM purchase_items WHERE purchase_id = ?`).get(purchase.body.id);
+  assert.equal(item.unit_label, "50kg bag");
+  assert.equal(item.conversion_factor, 50000);
+  assert.equal(item.quantity_in_unit, 2);
+  assert.equal(item.quantity_base, 100000);
+});
+
 test("sale decreases stock and raises customer receivable", async () => {
   const before = stockOf(1);
   const r = await post("/sales", {
@@ -101,6 +143,56 @@ test("sale decreases stock and raises customer receivable", async () => {
   assert.equal(stockOf(1), before - 10);
   // total 1300, paid 1000 -> customer owes 300
   assert.equal(bal("customer", 1), 300);
+});
+
+test("selling loose units deducts exact base quantity and rejects over-selling", async () => {
+  const productId = createProduct("Loose Urea Multi", "g", 80, 120);
+  const unit = await post(`/products/${productId}/units`, {
+    unit_label: "1kg loose",
+    conversion_factor: 1000,
+    sale_price: 120,
+    is_default: true,
+  });
+  assert.equal(unit.status, 201);
+  await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [
+      {
+        product_id: productId,
+        product_unit_id: unit.body.id,
+        quantity_in_unit: 2,
+        batch_number: "MU-LOOSE",
+        expiry_date: "2030-01-01",
+        rate: 80,
+      },
+    ],
+  });
+
+  const before = stockOf(productId);
+  const sale = await post("/sales", {
+    customer_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: productId, product_unit_id: unit.body.id, quantity_in_unit: 1, rate: 120 }],
+  });
+  assert.equal(sale.status, 201);
+  assert.equal(stockOf(productId), before - 1000);
+  const item = getDb().prepare(`SELECT * FROM sale_items WHERE sale_id = ?`).get(sale.body.id);
+  assert.equal(item.unit_label, "1kg loose");
+  assert.equal(item.conversion_factor, 1000);
+  assert.equal(item.quantity_in_unit, 1);
+  assert.equal(item.quantity_base, 1000);
+
+  const reject = await post("/sales", {
+    customer_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: productId, product_unit_id: unit.body.id, quantity_in_unit: 2, rate: 120 }],
+  });
+  assert.equal(reject.status, 400);
+  assert.match(reject.body.error, /Not enough stock/);
 });
 
 test("selling more than available stock is rejected and writes nothing", async () => {
@@ -169,6 +261,170 @@ test("validation blocks empty and negative input", async () => {
     items: [{ product_id: 1, quantity: 1, rate: 130 }],
   });
   assert.equal(over.status, 400);
+});
+
+test("purchase return decreases stock and reduces supplier payable", async () => {
+  const purchase = await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: 1, batch_number: "RET-1", expiry_date: "2030-01-01", quantity: 20, rate: 100 }],
+  });
+  assert.equal(purchase.status, 201);
+  const beforeStock = stockOf(1);
+  const beforePayable = bal("supplier", 1);
+  const purchaseItemId = getDb().prepare(`SELECT id FROM purchase_items WHERE purchase_id = ? ORDER BY id LIMIT 1`).get(purchase.body.id).id;
+  const r = await post("/purchase-returns", {
+    purchase_id: purchase.body.id,
+    date: today,
+    reason: "Damaged goods",
+    items: [{ purchase_item_id: purchaseItemId, quantity: 5 }],
+  });
+  assert.equal(r.status, 201);
+  assert.equal(stockOf(1), beforeStock - 5);
+  assert.equal(bal("supplier", 1), beforePayable + 500);
+});
+
+test("purchase return reverses the original item snapshot base quantity", async () => {
+  const productId = createProduct("Return Snapshot Urea", "g", 3000, 3600);
+  const unit = await post(`/products/${productId}/units`, {
+    unit_label: "50kg bag",
+    conversion_factor: 50000,
+    sale_price: 3600,
+    is_default: true,
+  });
+  const purchase = await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [
+      {
+        product_id: productId,
+        product_unit_id: unit.body.id,
+        quantity_in_unit: 2,
+        batch_number: "SNAP-RET",
+        expiry_date: "2030-01-01",
+        rate: 3000,
+      },
+    ],
+  });
+  assert.equal(purchase.status, 201);
+  const purchaseItem = getDb().prepare(`SELECT * FROM purchase_items WHERE purchase_id = ?`).get(purchase.body.id);
+  assert.equal(purchaseItem.quantity_base, 100000);
+  getDb().prepare(`UPDATE product_units SET conversion_factor = 25000, is_active = 0 WHERE id = ?`).run(unit.body.id);
+
+  const before = stockOf(productId);
+  const returned = await post("/purchase-returns", {
+    purchase_id: purchase.body.id,
+    date: today,
+    reason: "Packaging changed after purchase",
+    items: [{ purchase_item_id: purchaseItem.id, quantity: 2 }],
+  });
+  assert.equal(returned.status, 201);
+  assert.equal(stockOf(productId), before - purchaseItem.quantity_base);
+});
+
+test("sale return increases stock and reduces customer outstanding", async () => {
+  const sale = await post("/sales", {
+    customer_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: 1, quantity: 8, rate: 130 }],
+  });
+  assert.equal(sale.status, 201);
+  const beforeStock = stockOf(1);
+  const beforeReceivable = bal("customer", 1);
+  const saleItemId = getDb().prepare(`SELECT id FROM sale_items WHERE sale_id = ? ORDER BY id LIMIT 1`).get(sale.body.id).id;
+  const r = await post("/sale-returns", {
+    sale_id: sale.body.id,
+    date: today,
+    reason: "Customer changed mind",
+    items: [{ sale_item_id: saleItemId, quantity: 2 }],
+  });
+  assert.equal(r.status, 201);
+  assert.equal(stockOf(1), beforeStock + 2);
+  assert.equal(bal("customer", 1), beforeReceivable - 260);
+});
+
+test("payment received reduces customer balance and increases cash", async () => {
+  await post("/sales", {
+    customer_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: 1, quantity: 3, rate: 130 }],
+  });
+  const beforeCash = bal("cash");
+  const beforeBalance = bal("customer", 1);
+  const r = await post("/payments", {
+    direction: "in",
+    party_type: "customer",
+    party_id: 1,
+    amount: 100,
+    method: "cash",
+    date: today,
+    notes: "Advance payment",
+  });
+  assert.equal(r.status, 201);
+  assert.equal(bal("cash"), beforeCash + 100);
+  assert.equal(bal("customer", 1), beforeBalance - 100);
+});
+
+test("payment made reduces supplier balance and decreases cash", async () => {
+  await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: 1, batch_number: "PAY-1", expiry_date: "2030-01-01", quantity: 5, rate: 100 }],
+  });
+  const beforeCash = bal("cash");
+  const beforeBalance = bal("supplier", 1);
+  const r = await post("/payments", {
+    direction: "out",
+    party_type: "supplier",
+    party_id: 1,
+    amount: 80,
+    method: "cash",
+    date: today,
+    notes: "Paid supplier",
+  });
+  assert.equal(r.status, 201);
+  assert.equal(bal("cash"), beforeCash - 80);
+  assert.equal(bal("supplier", 1), beforeBalance + 80);
+});
+
+test("expense reduces cash and never touches customer or supplier balances", async () => {
+  const beforeCash = bal("cash");
+  const beforeCustomer = bal("customer", 1);
+  const beforeSupplier = bal("supplier", 1);
+  const r = await post("/expenses", {
+    category: "electricity",
+    amount: 45,
+    date: today,
+    method: "cash",
+    description: "Utility bill",
+  });
+  assert.equal(r.status, 201);
+  assert.equal(bal("cash"), beforeCash - 45);
+  assert.equal(bal("customer", 1), beforeCustomer);
+  assert.equal(bal("supplier", 1), beforeSupplier);
+});
+
+test("returning more than the original quantity is rejected and rolls back", async () => {
+  const purchase = await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: 1, batch_number: "RET-2", expiry_date: "2030-01-01", quantity: 10, rate: 100 }],
+  });
+  const beforeReturns = getDb().prepare(`SELECT COUNT(*) c FROM purchase_returns`).get().c;
+  const r = await post("/purchase-returns", {
+    purchase_id: purchase.body.id,
+    date: today,
+    reason: "Too many",
+    items: [{ purchase_item_id: 1, quantity: 999 }],
+  });
+  assert.equal(r.status, 400);
+  assert.equal(getDb().prepare(`SELECT COUNT(*) c FROM purchase_returns`).get().c, beforeReturns);
 });
 
 test("dashboard totals come back", async () => {

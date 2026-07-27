@@ -7,6 +7,46 @@ import { logActivity } from "../lib/auth.js";
 
 const router = Router();
 
+function resolvePurchaseUnit(db, item, idx) {
+  const hasMultiUnitInput = item.product_unit_id !== undefined || item.quantity_in_unit !== undefined;
+  const product = db.prepare(`SELECT * FROM products WHERE id = ?`).get(item.product_id);
+  if (!product) throw new ValidationError(`Line ${idx + 1}: product not found`);
+
+  if (!hasMultiUnitInput) {
+    const qty = num(item.quantity);
+    const unit =
+      db
+        .prepare(
+          `SELECT * FROM product_units
+            WHERE product_id = ? AND is_active = 1
+            ORDER BY is_default DESC, id ASC LIMIT 1`,
+        )
+        .get(product.id) ?? null;
+    return {
+      quantity: qty,
+      unit_label: unit?.unit_label ?? product.unit,
+      conversion_factor: unit?.conversion_factor ?? 1,
+      quantity_in_unit: qty,
+      quantity_base: qty,
+    };
+  }
+
+  required(item.product_unit_id, `Line ${idx + 1}: unit`);
+  const quantityInUnit = num(item.quantity_in_unit);
+  const unit = db
+    .prepare(`SELECT * FROM product_units WHERE id = ? AND product_id = ? AND is_active = 1`)
+    .get(item.product_unit_id, product.id);
+  if (!unit) throw new ValidationError(`Line ${idx + 1}: active product unit not found`);
+  const quantityBase = Math.round(quantityInUnit * unit.conversion_factor);
+  return {
+    quantity: quantityBase,
+    unit_label: unit.unit_label,
+    conversion_factor: unit.conversion_factor,
+    quantity_in_unit: quantityInUnit,
+    quantity_base: quantityBase,
+  };
+}
+
 router.get("/", (req, res) => {
   res.json(
     getDb()
@@ -57,9 +97,11 @@ router.post("/", (req, res) => {
   if (!supplier) throw new ValidationError("Supplier not found");
 
   const lines = items.map((it, idx) => {
-    const qty = num(it.quantity);
+    const unitSnapshot = resolvePurchaseUnit(getDb(), it, idx);
+    const qty = unitSnapshot.quantity_in_unit;
     const rate = num(it.rate);
     if (!(qty > 0)) throw new ValidationError(`Line ${idx + 1}: quantity must be greater than zero`);
+    if (!(unitSnapshot.quantity_base > 0)) throw new ValidationError(`Line ${idx + 1}: base quantity must be greater than zero`);
     if (rate < 0) throw new ValidationError(`Line ${idx + 1}: rate cannot be negative`);
     if (!it.product_id) throw new ValidationError(`Line ${idx + 1}: choose a product`);
     const discount = num(it.discount);
@@ -68,7 +110,11 @@ router.post("/", (req, res) => {
       product_id: Number(it.product_id),
       batch_number: String(it.batch_number || "-").trim() || "-",
       expiry_date: it.expiry_date || null,
-      quantity: qty,
+      quantity: unitSnapshot.quantity_base,
+      unit_label: unitSnapshot.unit_label,
+      conversion_factor: unitSnapshot.conversion_factor,
+      quantity_in_unit: unitSnapshot.quantity_in_unit,
+      quantity_base: unitSnapshot.quantity_base,
       rate,
       discount,
       tax,
@@ -109,8 +155,9 @@ router.post("/", (req, res) => {
 
     const itemStmt = db.prepare(
       `INSERT INTO purchase_items (purchase_id, product_id, batch_number, expiry_date,
-                                   quantity, rate, discount, tax, line_total)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                   quantity, unit_label, conversion_factor, quantity_in_unit,
+                                   quantity_base, rate, discount, tax, line_total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const l of lines) {
       itemStmt.run(
@@ -119,6 +166,10 @@ router.post("/", (req, res) => {
         l.batch_number,
         l.expiry_date,
         l.quantity,
+        l.unit_label,
+        l.conversion_factor,
+        l.quantity_in_unit,
+        l.quantity_base,
         l.rate,
         l.discount,
         l.tax,
@@ -128,7 +179,7 @@ router.post("/", (req, res) => {
         product_id: l.product_id,
         batch_number: l.batch_number,
         expiry_date: l.expiry_date,
-        quantity: l.quantity,
+        quantity: l.quantity_base,
         rate: l.rate,
       });
       // keep the product's reference purchase price current

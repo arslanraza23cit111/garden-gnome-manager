@@ -40,15 +40,60 @@ export function increaseStock({ product_id, batch_number, expiry_date, quantity,
   return info.lastInsertRowid;
 }
 
+/** Restore stock for a sale return by preferring the original batch/expiry and falling back to a matching batch. */
+export function restoreStock({ product_id, batch_number, expiry_date, quantity, rate }) {
+  const db = getDb();
+  if (!(quantity > 0)) throw new Error("Quantity must be greater than zero");
+  const bn = batch_number || "-";
+  const exact = findBatch(product_id, bn, expiry_date);
+  if (exact) {
+    db.prepare(`UPDATE product_batches SET quantity = quantity + ?, purchase_rate = ? WHERE id = ?`).run(
+      quantity,
+      rate ?? exact.purchase_rate,
+      exact.id,
+    );
+    return exact.id;
+  }
+
+  const sameExpiry = expiry_date
+    ? db
+        .prepare(`SELECT * FROM product_batches WHERE product_id = ? AND expiry_date = ? ORDER BY id DESC LIMIT 1`)
+        .get(product_id, norm(expiry_date))
+    : null;
+  if (sameExpiry) {
+    db.prepare(`UPDATE product_batches SET quantity = quantity + ?, purchase_rate = ? WHERE id = ?`).run(
+      quantity,
+      rate ?? sameExpiry.purchase_rate,
+      sameExpiry.id,
+    );
+    return sameExpiry.id;
+  }
+
+  const sameBatch = batch_number
+    ? db.prepare(`SELECT * FROM product_batches WHERE product_id = ? AND batch_number = ? ORDER BY id DESC LIMIT 1`).get(product_id, bn)
+    : null;
+  if (sameBatch) {
+    db.prepare(`UPDATE product_batches SET quantity = quantity + ?, purchase_rate = ? WHERE id = ?`).run(
+      quantity,
+      rate ?? sameBatch.purchase_rate,
+      sameBatch.id,
+    );
+    return sameBatch.id;
+  }
+
+  return increaseStock({ product_id, batch_number: bn, expiry_date, quantity, rate });
+}
+
 /** Purchase-return: remove stock from one named batch. Rejects if insufficient. */
-export function decreaseStockFromBatch({ product_id, batch_number, quantity }) {
+export function decreaseStockFromBatch({ product_id, batch_number, expiry_date, quantity }) {
   const db = getDb();
   const row = db
     .prepare(
       `SELECT * FROM product_batches WHERE product_id = ? AND batch_number = ?
+        AND (expiry_date IS ? OR expiry_date = ?)
         ORDER BY quantity DESC LIMIT 1`,
     )
-    .get(product_id, batch_number || "-");
+    .get(product_id, batch_number || "-", norm(expiry_date), norm(expiry_date));
   if (!row) throw new Error(`No stock found for batch ${batch_number}`);
   if (row.quantity < quantity)
     throw new Error(`Insufficient stock in batch ${batch_number}: have ${row.quantity}, need ${quantity}`);

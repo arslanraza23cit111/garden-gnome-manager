@@ -5,7 +5,7 @@ import DataTable from "../components/DataTable.jsx";
 import Modal, { Alert, Field } from "../components/Modal.jsx";
 import InvoicePrint from "../components/InvoicePrint.jsx";
 
-const emptyLine = () => ({ product_id: "", quantity: "", rate: "", discount: "" });
+const emptyLine = () => ({ product_id: "", product_unit_id: "", quantity: "", rate: "", discount: "" });
 
 export default function Sales() {
   const [rows, setRows] = useState([]);
@@ -20,9 +20,15 @@ export default function Sales() {
 
   const load = () =>
     Promise.all([api.get("/sales"), api.get("/products"), api.get("/customers")])
-      .then(([s, p, c]) => {
+      .then(async ([s, p, c]) => {
+        const withUnits = await Promise.all(
+          p.map(async (product) => ({
+            ...product,
+            units: await api.get(`/products/${product.id}/units`).catch(() => []),
+          })),
+        );
         setRows(s);
-        setProducts(p);
+        setProducts(withUnits);
         setCustomers(c);
       })
       .catch((e) => setError(e.message));
@@ -47,6 +53,14 @@ export default function Sales() {
   }
 
   const stockOf = (id) => products.find((p) => String(p.id) === String(id))?.current_stock ?? 0;
+  const productOf = (id) => products.find((p) => String(p.id) === String(id));
+  const activeUnitsOf = (id) => (productOf(id)?.units ?? []).filter((u) => u.is_active !== 0);
+  const unitOf = (line) => activeUnitsOf(line.product_id).find((u) => String(u.id) === String(line.product_unit_id));
+  const baseQty = (line) => Number(line.quantity || 0) * Number(unitOf(line)?.conversion_factor || 0);
+  const baseEquivalent = (line) => {
+    if (!line.product_unit_id) return "";
+    return `= ${qty(baseQty(line))} ${productOf(line.product_id)?.unit || "base units"}`;
+  };
   const lineTotal = (l) => Number(l.quantity || 0) * Number(l.rate || 0) - Number(l.discount || 0);
   const total = form ? form.items.reduce((s, l) => s + lineTotal(l), 0) : 0;
   const remaining = total - Number(form?.paid_amount || 0);
@@ -59,8 +73,9 @@ export default function Sales() {
     if (!form.customer_id) return setFormError("Choose a customer");
     for (const [i, l] of form.items.entries()) {
       if (!l.product_id) return setFormError(`Line ${i + 1}: choose a product`);
+      if (!l.product_unit_id) return setFormError(`Line ${i + 1}: choose a unit`);
       if (!(Number(l.quantity) > 0)) return setFormError(`Line ${i + 1}: quantity must be more than zero`);
-      if (Number(l.quantity) > stockOf(l.product_id))
+      if (baseQty(l) > stockOf(l.product_id))
         return setFormError(
           `Line ${i + 1}: only ${stockOf(l.product_id)} in stock — you cannot sell more than available`,
         );
@@ -71,7 +86,11 @@ export default function Sales() {
 
     setSaving(true);
     try {
-      const res = await api.post("/sales", { ...form, paid_amount: Number(form.paid_amount || 0) });
+      const res = await api.post("/sales", {
+        ...form,
+        paid_amount: Number(form.paid_amount || 0),
+        items: form.items.map((l) => ({ ...l, quantity_in_unit: Number(l.quantity || 0) })),
+      });
       setOpen(false);
       await load();
       if (thenPrint) api.get(`/sales/${res.id}`).then(setInvoice);
@@ -191,6 +210,7 @@ export default function Sales() {
                 <thead>
                   <tr>
                     <th>Product</th>
+                    <th>Unit</th>
                     <th className="text-right">In stock</th>
                     <th className="text-right">Qty</th>
                     <th className="text-right">Rate</th>
@@ -202,7 +222,7 @@ export default function Sales() {
                 <tbody>
                   {form.items.map((l, i) => {
                     const available = stockOf(l.product_id);
-                    const over = Number(l.quantity || 0) > available;
+                    const over = baseQty(l) > available;
                     return (
                       <tr key={i}>
                         <td className="min-w-[200px]">
@@ -211,7 +231,13 @@ export default function Sales() {
                             value={l.product_id}
                             onChange={(e) => {
                               const p = products.find((x) => String(x.id) === e.target.value);
-                              setLine(i, { product_id: e.target.value, rate: l.rate || p?.sale_price || "" });
+                              const units = (p?.units ?? []).filter((u) => u.is_active !== 0);
+                              const defaultUnit = units.find((u) => u.is_default) ?? units[0];
+                              setLine(i, {
+                                product_id: e.target.value,
+                                product_unit_id: defaultUnit?.id ?? "",
+                                rate: l.rate || defaultUnit?.sale_price || p?.sale_price || "",
+                              });
                             }}
                           >
                             <option value="">Select…</option>
@@ -222,11 +248,42 @@ export default function Sales() {
                             ))}
                           </select>
                         </td>
+                        <td className="w-36">
+                          <select
+                            className="input"
+                            value={l.product_unit_id}
+                            disabled={!l.product_id}
+                            onChange={(e) => {
+                              const unit = activeUnitsOf(l.product_id).find((u) => String(u.id) === e.target.value);
+                              setLine(i, { product_unit_id: e.target.value, rate: unit?.sale_price || l.rate });
+                            }}
+                          >
+                            <option value="">Select...</option>
+                            {activeUnitsOf(l.product_id).map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.unit_label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
                         <td className="text-right tabular-nums text-slate-500">{qty(available)}</td>
-                        {["quantity", "rate", "discount"].map((k) => (
+                        <td className="w-28">
+                          <input
+                            className={`input text-right ${over ? "border-rose-400" : ""}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={l.quantity}
+                            onChange={(e) => setLine(i, { quantity: e.target.value })}
+                          />
+                          {l.product_unit_id && (
+                            <p className="mt-1 text-right text-[11px] text-slate-500">{baseEquivalent(l)}</p>
+                          )}
+                        </td>
+                        {["rate", "discount"].map((k) => (
                           <td key={k} className="w-24">
                             <input
-                              className={`input text-right ${k === "quantity" && over ? "border-rose-400" : ""}`}
+                              className="input text-right"
                               type="number"
                               min="0"
                               step="0.01"

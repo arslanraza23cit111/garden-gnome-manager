@@ -96,9 +96,11 @@ non-negotiable rules:
 - selling more than available stock is rejected and **writes nothing**
 - a bad line rolls the whole sale back (atomicity)
 - FEFO: the nearest-expiry batch is consumed first
+- purchase/sale returns reduce stock and ledger balances correctly
+- payments and expenses post to cash/bank and party balances correctly
 - total debit always equals total credit in `ledger_entries`
 
-## 6. What is built (Phase 1 — MVP)
+## 6. What is built (Phase 1 + Phase 2 MVP)
 
 | Module          | Status                                                              |
 | --------------- | ------------------------------------------------------------------- |
@@ -109,13 +111,17 @@ non-negotiable rules:
 | Sale entry      | Multi-line, FEFO stock out + customer ledger, atomic, invoice print |
 | Customers       | Full profile, credit limit, opening balance, running ledger         |
 | Suppliers       | Full profile, opening payable, running ledger                       |
+| Purchase returns| Reverse purchases, reduce stock back out, and offset supplier payable |
+| Sale returns    | Reverse sales, restore stock, and reduce customer outstanding        |
+| Payments        | Receive customer payments and pay suppliers from one screen          |
+| Expenses        | Post cash/bank expenses with category filters and a running total   |
+| Dashboard       | Expense totals, receipt/payment metrics, and cash/bank balances now reflect all ledger activity |
 
 The **database schema for every later phase already exists** (returns, payments,
 expenses, employees, salary payments, activity log, settings) — later phases add
 screens, not migrations.
 
-Planned: Phase 2 returns / payments / expenses / settings · Phase 3 accounts,
-roles, backup · Phase 4 reports and analytics.
+Planned: Phase 3 accounts, roles, backup · Phase 4 reports and analytics.
 
 ## 7. How the money and stock rules are enforced
 

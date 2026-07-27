@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  RotateCcw,
   Sprout,
 } from "lucide-react";
 import { clearSession, getUser } from "../api/client.js";
@@ -22,8 +23,11 @@ const NAV = [
   { to: "/sales", label: "Sales", icon: Receipt },
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/suppliers", label: "Suppliers", icon: Truck },
+  { to: "/purchase-returns", label: "Purchase returns", icon: RotateCcw },
+  { to: "/sale-returns", label: "Sale returns", icon: RotateCcw },
+  { to: "/payments", label: "Payments", icon: Wallet },
+  { to: "/expenses", label: "Expenses", icon: Wallet },
   { to: "/accounts", label: "Accounts", icon: BookOpen, phase: 3 },
-  { to: "/expenses", label: "Expenses", icon: Wallet, phase: 2 },
   { to: "/reports", label: "Reports", icon: BarChart3, phase: 4 },
   { to: "/settings", label: "Settings", icon: Settings, phase: 2 },
 ];
