@@ -12,6 +12,7 @@ import supplierRoutes from "./routes/suppliers.js";
 import returnsRoutes from "./routes/returns.js";
 import paymentRoutes from "./routes/payments.js";
 import expenseRoutes from "./routes/expenses.js";
+import employeeRoutes from "./routes/employees.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import settingsRoutes from "./routes/settings.js";
 
@@ -34,6 +35,7 @@ export function createApp() {
   app.use("/api", requireAuth, returnsRoutes);
   app.use("/api/payments", requireAuth, paymentRoutes);
   app.use("/api/expenses", requireAuth, expenseRoutes);
+  app.use("/api/employees", requireAuth, employeeRoutes);
   app.use("/api/dashboard", requireAuth, dashboardRoutes);
   app.use("/api/settings", requireAuth, settingsRoutes);
 

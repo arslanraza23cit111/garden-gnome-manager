@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { getDb, tx } from "../db/connection.js";
-import * as ledger from "../services/ledgerService.js";
-import { ValidationError, required, num, round2, today } from "../lib/util.js";
+import { recordExpense, EXPENSE_CATEGORIES } from "../services/expenseService.js";
+import { ValidationError, required, today } from "../lib/util.js";
 import { logActivity } from "../lib/auth.js";
 
 const router = Router();
-const ALLOWED = ["salary", "electricity", "rent", "transport", "fuel", "loading/unloading", "repair", "mobile/internet", "miscellaneous"];
+const ALLOWED = EXPENSE_CATEGORIES;
 
 router.get("/", (req, res) => {
   const db = getDb();
@@ -24,35 +24,20 @@ router.post("/", (req, res) => {
   const date = body.date || today();
   required(body.category, "Category");
   if (!ALLOWED.includes(body.category)) throw new ValidationError("Unsupported category");
-  const amount = round2(num(body.amount));
-  if (amount <= 0) throw new ValidationError("Amount must be greater than zero");
-  if (!["cash", "bank"].includes(body.method)) throw new ValidationError("Expenses can be paid by cash or bank");
 
-  const id = tx(() => {
-    const info = getDb()
-      .prepare(
-        `INSERT INTO expenses (category, amount, date, method, description, created_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      )
-      .run(body.category, amount, date, body.method, body.description ?? null, req.user?.id ?? null);
-    const expenseId = Number(info.lastInsertRowid);
-    ledger.post(
-      [
-        { account_type: ledger.moneyAccount(body.method), credit: amount },
-        { account_type: "expense", debit: amount },
-      ],
-      {
-        date,
-        source_type: "expense",
-        source_id: expenseId,
-        description: `${body.category} — ${body.description || "Expense"}`,
-      },
-    );
-    return expenseId;
-  })();
+  const result = tx(() =>
+    recordExpense({
+      category: body.category,
+      amount: body.amount,
+      date,
+      method: body.method,
+      description: body.description,
+      created_by: req.user?.id ?? null,
+    }),
+  )();
 
-  logActivity(req.user?.id, "create", "expenses", id, `${body.category} / ${amount}`);
-  res.status(201).json({ id, amount, category: body.category });
+  logActivity(req.user?.id, "create", "expenses", result.id, `${body.category} / ${result.amount}`);
+  res.status(201).json({ id: result.id, amount: result.amount, category: body.category });
 });
 
 export default router;

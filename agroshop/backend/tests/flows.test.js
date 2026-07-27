@@ -433,3 +433,49 @@ test("dashboard totals come back", async () => {
   assert.ok(r.body.stock_value >= 0);
   assert.ok("cash_in_hand" in r.body);
 });
+
+test("salary payment reduces cash, records history, and posts as a salary expense", async () => {
+  const created = await post("/employees", { name: "Rashid", mobile: "0300", salary: 30000, role: "Salesman", joining_date: today });
+  assert.equal(created.status, 201);
+  const empId = created.body.id;
+
+  const beforeCash = bal("cash");
+  const beforeBank = bal("bank");
+  const beforeExpense = bal("expense");
+
+  const pay = await post(`/employees/${empId}/salary-payments`, { amount: 5000, date: today, method: "cash", notes: "Advance" });
+  assert.equal(pay.status, 201);
+  assert.equal(bal("cash"), beforeCash - 5000);
+  assert.equal(bal("expense"), beforeExpense + 5000);
+
+  const payBank = await post(`/employees/${empId}/salary-payments`, { amount: 2500, date: today, method: "bank" });
+  assert.equal(payBank.status, 201);
+  assert.equal(bal("bank"), beforeBank - 2500);
+  assert.equal(bal("cash"), beforeCash - 5000);
+
+  const history = await get(`/employees/${empId}/payments`);
+  assert.equal(history.status, 200);
+  assert.equal(history.body.length, 2);
+  assert.equal(history.body.reduce((s, p) => s + p.amount, 0), 7500);
+
+  const expenses = await get("/expenses");
+  const salaryRows = expenses.body.filter((e) => e.category === "salary" && /Rashid/.test(e.description || ""));
+  assert.equal(salaryRows.length, 2);
+});
+
+test("deactivating an employee keeps their salary payment history", async () => {
+  const created = await post("/employees", { name: "Bilal", salary: 20000 });
+  const empId = created.body.id;
+  await post(`/employees/${empId}/salary-payments`, { amount: 1000, date: today, method: "cash" });
+
+  const off = await post(`/employees/${empId}/deactivate`, {});
+  assert.equal(off.status, 201 === off.status ? off.status : 200);
+  assert.equal(off.body.is_active, 0);
+
+  const history = await get(`/employees/${empId}/payments`);
+  assert.equal(history.body.length, 1);
+  assert.equal(history.body[0].amount, 1000);
+
+  const list = await get("/employees");
+  assert.ok(list.body.some((e) => e.id === empId && e.is_active === 0));
+});

@@ -12,6 +12,7 @@ import PurchaseReturns from "./pages/PurchaseReturns.jsx";
 import SaleReturns from "./pages/SaleReturns.jsx";
 import Payments from "./pages/Payments.jsx";
 import Expenses from "./pages/Expenses.jsx";
+import Employees from "./pages/Employees.jsx";
 import Settings from "./pages/Settings.jsx";
 import ComingSoon from "./pages/ComingSoon.jsx";
 
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/sale-returns" element={<SaleReturns />} />
         <Route path="/payments" element={<Payments />} />
         <Route path="/expenses" element={<Expenses />} />
+        <Route path="/employees" element={<Employees />} />
         <Route
           path="/accounts"
           element={<ComingSoon title="Accounts & Ledger" phase={3} detail="General ledger, trial balance, P&L and balance sheet, all derived from the ledger_entries table that Phase 1 is already writing." />}
