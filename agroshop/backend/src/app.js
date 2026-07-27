@@ -13,6 +13,7 @@ import returnsRoutes from "./routes/returns.js";
 import paymentRoutes from "./routes/payments.js";
 import expenseRoutes from "./routes/expenses.js";
 import dashboardRoutes from "./routes/dashboard.js";
+import settingsRoutes from "./routes/settings.js";
 
 export function createApp() {
   getDb();
@@ -34,6 +35,7 @@ export function createApp() {
   app.use("/api/payments", requireAuth, paymentRoutes);
   app.use("/api/expenses", requireAuth, expenseRoutes);
   app.use("/api/dashboard", requireAuth, dashboardRoutes);
+  app.use("/api/settings", requireAuth, settingsRoutes);
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "Unknown endpoint" }));
 
