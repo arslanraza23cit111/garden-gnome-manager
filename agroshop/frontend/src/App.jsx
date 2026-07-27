@@ -12,6 +12,7 @@ import PurchaseReturns from "./pages/PurchaseReturns.jsx";
 import SaleReturns from "./pages/SaleReturns.jsx";
 import Payments from "./pages/Payments.jsx";
 import Expenses from "./pages/Expenses.jsx";
+import Settings from "./pages/Settings.jsx";
 import ComingSoon from "./pages/ComingSoon.jsx";
 
 function Shell({ children }) {
@@ -49,10 +50,7 @@ export default function App() {
           path="/reports"
           element={<ComingSoon title="Reports & Analytics" phase={4} detail="Sales, purchase, stock, expiry, profit and outstanding reports with CSV/PDF export." />}
         />
-        <Route
-          path="/settings"
-          element={<ComingSoon title="Settings & Backup" phase={2} detail="Shop details on invoices, print mode, user password, and the manual “Backup now” copy of the SQLite file." />}
-        />
+        <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>
