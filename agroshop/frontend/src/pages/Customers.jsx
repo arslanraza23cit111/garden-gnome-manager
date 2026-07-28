@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Plus } from "lucide-react";
-import { api, money } from "../api/client.js";
+import { api, getUser, money } from "../api/client.js";
 import DataTable from "../components/DataTable.jsx";
 import Modal, { Alert, Field } from "../components/Modal.jsx";
+import { canWrite } from "../lib/roles.js";
 
 const EMPTY = {
   name: "",
@@ -23,6 +24,7 @@ export default function Customers() {
   const [form, setForm] = useState(EMPTY);
   const [formError, setFormError] = useState("");
   const [ledger, setLedger] = useState(null);
+  const canEdit = canWrite(getUser()?.role, "customers");
 
   const load = () => api.get("/customers").then(setRows).catch((e) => setError(e.message));
   useEffect(() => {
@@ -82,16 +84,18 @@ export default function Customers() {
           <button className="btn-ghost px-2 py-1 text-xs" onClick={() => api.get(`/customers/${r.id}/ledger`).then(setLedger)}>
             <BookOpen size={13} /> Ledger
           </button>
-          <button
-            className="btn-ghost px-2 py-1 text-xs"
-            onClick={() => {
-              setForm({ ...EMPTY, ...r });
-              setEditing(r.id);
-              setFormError("");
-            }}
-          >
-            Edit
-          </button>
+          {canEdit && (
+            <button
+              className="btn-ghost px-2 py-1 text-xs"
+              onClick={() => {
+                setForm({ ...EMPTY, ...r });
+                setEditing(r.id);
+                setFormError("");
+              }}
+            >
+              Edit
+            </button>
+          )}
         </div>
       ),
     },
@@ -104,16 +108,18 @@ export default function Customers() {
           <h1 className="text-xl font-semibold text-slate-800">Customers</h1>
           <p className="text-sm text-slate-500">Balances are computed from the ledger — never typed in.</p>
         </div>
-        <button
-          className="btn-primary"
-          onClick={() => {
-            setForm(EMPTY);
-            setEditing("new");
-            setFormError("");
-          }}
-        >
-          <Plus size={16} /> New customer
-        </button>
+        {canEdit && (
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setForm(EMPTY);
+              setEditing("new");
+              setFormError("");
+            }}
+          >
+            <Plus size={16} /> New customer
+          </button>
+        )}
       </header>
 
       <Alert message={error} />

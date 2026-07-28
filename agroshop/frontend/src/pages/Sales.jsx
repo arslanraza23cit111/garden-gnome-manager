@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Plus, Printer, Trash2 } from "lucide-react";
-import { api, money, qty, todayStr } from "../api/client.js";
+import { api, getUser, money, qty, todayStr } from "../api/client.js";
 import DataTable from "../components/DataTable.jsx";
 import Modal, { Alert, Field } from "../components/Modal.jsx";
 import InvoicePrint from "../components/InvoicePrint.jsx";
+import { canWrite } from "../lib/roles.js";
 
 const emptyLine = () => ({ product_id: "", product_unit_id: "", quantity: "", rate: "", discount: "" });
 
@@ -17,6 +18,7 @@ export default function Sales() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [invoice, setInvoice] = useState(null);
+  const canEdit = canWrite(getUser()?.role, "sales");
 
   const load = () =>
     Promise.all([api.get("/sales"), api.get("/products"), api.get("/customers")])
@@ -140,9 +142,11 @@ export default function Sales() {
             Stock leaves the nearest-expiry batch first; the customer ledger updates in the same transaction.
           </p>
         </div>
-        <button className="btn-primary" onClick={openNew}>
-          <Plus size={16} /> New sale
-        </button>
+        {canEdit && (
+          <button className="btn-primary" onClick={openNew}>
+            <Plus size={16} /> New sale
+          </button>
+        )}
       </header>
 
       <Alert message={error} />

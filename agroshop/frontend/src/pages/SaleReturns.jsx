@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Plus, RotateCcw } from "lucide-react";
-import { api, money, qty, todayStr } from "../api/client.js";
+import { api, getUser, money, qty, todayStr } from "../api/client.js";
 import DataTable from "../components/DataTable.jsx";
 import Modal, { Alert, Field } from "../components/Modal.jsx";
+import { canWrite } from "../lib/roles.js";
 
 export default function SaleReturns() {
   const [rows, setRows] = useState([]);
@@ -13,6 +14,7 @@ export default function SaleReturns() {
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const canEdit = canWrite(getUser()?.role, "sale-returns");
 
   const load = () =>
     Promise.all([api.get("/sale-returns"), api.get("/sales")])
@@ -82,9 +84,11 @@ export default function SaleReturns() {
           <h1 className="text-xl font-semibold text-slate-800">Sale returns</h1>
           <p className="text-sm text-slate-500">Restock goods and reduce customer outstanding.</p>
         </div>
-        <button className="btn-primary" onClick={openNew}>
-          <RotateCcw size={16} /> New return
-        </button>
+        {canEdit && (
+          <button className="btn-primary" onClick={openNew}>
+            <RotateCcw size={16} /> New return
+          </button>
+        )}
       </header>
 
       <Alert message={error} />

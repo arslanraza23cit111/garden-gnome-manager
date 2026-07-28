@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Layers, Plus, Trash2 } from "lucide-react";
-import { api, money, qty } from "../api/client.js";
+import { api, getUser, money, qty } from "../api/client.js";
 import DataTable from "../components/DataTable.jsx";
 import Modal, { Alert, Field } from "../components/Modal.jsx";
+import { canWrite } from "../lib/roles.js";
 
 const UNITS = ["kg", "bag", "litre", "bottle", "packet", "piece"];
 const emptySellingUnit = (patch = {}) => ({
@@ -36,6 +37,7 @@ export default function Products() {
   const [form, setForm] = useState(EMPTY);
   const [formError, setFormError] = useState("");
   const [batchesFor, setBatchesFor] = useState(null);
+  const canEdit = canWrite(getUser()?.role, "products");
 
   const load = () => api.get("/products").then(setRows).catch((e) => setError(e.message));
   useEffect(() => {
@@ -172,14 +174,16 @@ export default function Products() {
             >
               <Layers size={13} /> Batches
             </button>
-            <button className="btn-ghost px-2 py-1 text-xs" onClick={() => openEdit(r)}>
-              Edit
-            </button>
+            {canEdit && (
+              <button className="btn-ghost px-2 py-1 text-xs" onClick={() => openEdit(r)}>
+                Edit
+              </button>
+            )}
           </div>
         ),
       },
     ],
-    [],
+    [canEdit],
   );
 
   return (
@@ -191,9 +195,11 @@ export default function Products() {
             Stock is tracked per batch and expiry — it changes only through purchases, sales and returns.
           </p>
         </div>
-        <button className="btn-primary" onClick={openNew}>
-          <Plus size={16} /> New product
-        </button>
+        {canEdit && (
+          <button className="btn-primary" onClick={openNew}>
+            <Plus size={16} /> New product
+          </button>
+        )}
       </header>
 
       <Alert message={error} />

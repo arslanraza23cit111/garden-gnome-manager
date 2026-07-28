@@ -48,9 +48,9 @@ function addColumn(db, table, definition) {
 function unitMigrationFactor(unit) {
   const u = String(unit || "").toLowerCase();
   const label = unit || "piece";
-  if (["kg", "kilogram", "kilograms"].includes(u)) return { factor: 1000, label };
+  if (["kg", "kilogram", "kilograms"].includes(u)) return { factor: 1, label };
   if (["g", "gram", "grams"].includes(u)) return { factor: 1, label };
-  if (["litre", "liter", "litres", "liters", "l"].includes(u)) return { factor: 1000, label };
+  if (["litre", "liter", "litres", "liters", "l"].includes(u)) return { factor: 1, label };
   if (["ml", "millilitre", "milliliter", "millilitres", "milliliters"].includes(u))
     return { factor: 1, label };
   return { factor: 1, label };
@@ -88,17 +88,27 @@ function migrateUnits(db) {
         `INSERT INTO product_units (product_id, unit_label, conversion_factor, sale_price, is_active, is_default)
          VALUES (?, ?, ?, ?, 1, 1)`,
       ).run(product.id, mapping.label, mapping.factor, product.sale_price ?? 0);
+    } else {
+      db.prepare(
+        `UPDATE product_units
+            SET conversion_factor = ?
+          WHERE product_id = ?
+            AND is_default = 1
+            AND unit_label = ?
+            AND conversion_factor <> ?`,
+      ).run(mapping.factor, product.id, mapping.label, mapping.factor);
     }
 
     for (const table of ["purchase_items", "sale_items"]) {
       db.prepare(
         `UPDATE ${table}
             SET unit_label = COALESCE(unit_label, ?),
-                conversion_factor = COALESCE(conversion_factor, ?),
+                conversion_factor = ?,
                 quantity_in_unit = COALESCE(quantity_in_unit, quantity),
-                quantity_base = COALESCE(quantity_base, ROUND(quantity * ?))
-          WHERE product_id = ?`,
-      ).run(mapping.label, mapping.factor, mapping.factor, product.id);
+                quantity_base = ROUND(COALESCE(quantity_in_unit, quantity) * ?)
+          WHERE product_id = ?
+            AND (unit_label IS NULL OR unit_label = ?)`,
+      ).run(mapping.label, mapping.factor, mapping.factor, product.id, mapping.label);
     }
   }
 }

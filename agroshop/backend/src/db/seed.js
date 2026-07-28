@@ -62,6 +62,13 @@ const insertProduct = db.prepare(
 );
 for (const r of productRows) insertProduct.run(...r);
 
+db.prepare(
+  `INSERT INTO product_units (product_id, unit_label, conversion_factor, sale_price, is_active, is_default)
+   SELECT id, '1kg loose', 1, 91, 1, 0
+     FROM products
+    WHERE name = 'Urea 46%'`,
+).run();
+
 // ---- customers -------------------------------------------------------------
 const customerRows = [
   ["Muhammad Aslam", "Ghulam Rasool", "3520112345671", "0300-1112233", "Chak 42/12-L", "Chichawatni", "farmer", 200000],

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { api, money, qty, todayStr } from "../api/client.js";
+import { api, getUser, money, qty, todayStr } from "../api/client.js";
 import DataTable from "../components/DataTable.jsx";
 import Modal, { Alert, Field } from "../components/Modal.jsx";
+import { canWrite } from "../lib/roles.js";
 
 const emptyLine = () => ({
   product_id: "",
@@ -25,6 +26,7 @@ export default function Purchases() {
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState(null);
   const [form, setForm] = useState(null);
+  const canEdit = canWrite(getUser()?.role, "purchases");
 
   const load = () =>
     Promise.all([api.get("/purchases"), api.get("/products"), api.get("/suppliers")])
@@ -145,9 +147,11 @@ export default function Purchases() {
             Saving a purchase increases batch stock and the supplier payable in one atomic step.
           </p>
         </div>
-        <button className="btn-primary" onClick={openNew}>
-          <Plus size={16} /> New purchase
-        </button>
+        {canEdit && (
+          <button className="btn-primary" onClick={openNew}>
+            <Plus size={16} /> New purchase
+          </button>
+        )}
       </header>
 
       <Alert message={error} />

@@ -16,6 +16,7 @@ process.env.AGROSHOP_DB_FILE = tmp;
 const { createApp } = await import("../src/app.js");
 const { getDb, closeDb } = await import("../src/db/connection.js");
 const { hashPassword } = await import("../src/lib/auth.js");
+const ledger = await import("../src/services/ledgerService.js");
 
 let server;
 let base;
@@ -33,6 +34,24 @@ async function call(method, path, body) {
 }
 const post = (p, b) => call("POST", p, b);
 const get = (p) => call("GET", p);
+async function loginAs(username, password) {
+  const res = await fetch(`${base}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  return body.token;
+}
+async function callAs(asToken, method, path, body) {
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${asToken}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return { status: res.status, body: await res.json() };
+}
 
 const stockOf = (productId) =>
   getDb().prepare(`SELECT COALESCE(SUM(quantity),0) q FROM product_batches WHERE product_id = ?`).get(productId).q;
@@ -54,6 +73,18 @@ before(async () => {
   const db = getDb();
   db.prepare(`INSERT INTO users (username, password_hash, full_name) VALUES ('admin', ?, 'Test')`).run(
     hashPassword("admin123"),
+  );
+  db.prepare(`INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)`).run(
+    "salesman",
+    hashPassword("sales123"),
+    "Sales Person",
+    "salesman",
+  );
+  db.prepare(`INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)`).run(
+    "accountant",
+    hashPassword("accounts123"),
+    "Account Person",
+    "accountant",
   );
   db.prepare(
     `INSERT INTO products (name, unit, purchase_price, sale_price, min_stock_level)
@@ -77,6 +108,65 @@ after(() => {
 test("auth is required", async () => {
   const res = await fetch(`${base}/products`);
   assert.equal(res.status, 401);
+});
+
+test("salesman gets 403 on a purchases-route write", async () => {
+  const salesmanToken = await loginAs("salesman", "sales123");
+  const r = await callAs(salesmanToken, "POST", "/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: 1, batch_number: "NOPE", expiry_date: "2030-01-01", quantity: 1, rate: 100 }],
+  });
+  assert.equal(r.status, 403);
+  assert.match(r.body.error, /permission/i);
+});
+
+test("accountant gets 403 on user management", async () => {
+  const accountantToken = await loginAs("accountant", "accounts123");
+  const r = await callAs(accountantToken, "GET", "/users");
+  assert.equal(r.status, 403);
+  assert.match(r.body.error, /permission/i);
+});
+
+test("activity log is admin-only and filterable", async () => {
+  const accountantToken = await loginAs("accountant", "accounts123");
+  const forbidden = await callAs(accountantToken, "GET", "/activity-log");
+  assert.equal(forbidden.status, 403);
+
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO activity_log (user_id, action, table_name, record_id, details, timestamp)
+     VALUES (?, 'create', 'products', 99, 'Test product', '2026-01-02 09:30:00')`,
+  ).run(1);
+  db.prepare(
+    `INSERT INTO activity_log (user_id, action, table_name, record_id, details, timestamp)
+     VALUES (?, 'update', 'users', 2, 'salesman', '2026-01-03 10:00:00')`,
+  ).run(1);
+
+  const filtered = await get("/activity-log?action=create&table_name=products&from=2026-01-01&to=2026-01-02&limit=10&offset=0");
+  assert.equal(filtered.status, 200);
+  assert.equal(filtered.body.total, 1);
+  assert.equal(filtered.body.rows.length, 1);
+  assert.equal(filtered.body.rows[0].table_name, "products");
+  assert.equal(filtered.body.rows[0].username, "admin");
+});
+
+test("admin can manage users", async () => {
+  const created = await post("/users", {
+    username: "storekeeper",
+    password: "store123",
+    full_name: "Store Keeper",
+    role: "storekeeper",
+  });
+  assert.equal(created.status, 201);
+  const changed = await callAs(token, "PUT", `/users/${created.body.id}`, {
+    full_name: "Store Keeper",
+    role: "manager",
+  });
+  assert.equal(changed.status, 200);
+  const deactivated = await callAs(token, "PATCH", `/users/${created.body.id}/deactivate`);
+  assert.equal(deactivated.status, 200);
 });
 
 test("purchase increases stock and supplier payable", async () => {
@@ -251,6 +341,13 @@ test("ledger is always balanced overall", async () => {
   assert.equal(row.d, row.c);
 });
 
+test("trial balance debits equal credits", async () => {
+  const r = await get("/dashboard/trial-balance?as_of=9999-12-31");
+  assert.equal(r.status, 200);
+  assert.equal(r.body.totals.debit, r.body.totals.credit);
+  assert.equal(r.body.totals.balance, 0);
+});
+
 test("validation blocks empty and negative input", async () => {
   assert.equal((await post("/products", { name: "", unit: "bag" })).status, 400);
   assert.equal((await post("/products", { name: "X", unit: "bag", sale_price: -5 })).status, 400);
@@ -324,6 +421,41 @@ test("purchase return reverses the original item snapshot base quantity", async 
   assert.equal(stockOf(productId), before - purchaseItem.quantity_base);
 });
 
+test("returning 7 kg from a 70 kg batch leaves 63 kg", async () => {
+  const productId = createProduct("Zinc Return Regression", "kg", 420, 520);
+  const purchase = await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: productId, batch_number: "ZN-REG", expiry_date: "2030-01-01", quantity: 70, rate: 420 }],
+  });
+  assert.equal(purchase.status, 201);
+  let purchaseItem = getDb().prepare(`SELECT * FROM purchase_items WHERE purchase_id = ?`).get(purchase.body.id);
+
+  getDb().prepare(`UPDATE product_units SET conversion_factor = 1000 WHERE product_id = ? AND is_default = 1`).run(productId);
+  getDb()
+    .prepare(`UPDATE purchase_items SET conversion_factor = 1000, quantity_base = 70000 WHERE id = ?`)
+    .run(purchaseItem.id);
+  closeDb();
+
+  const unit = getDb()
+    .prepare(`SELECT * FROM product_units WHERE product_id = ? AND is_default = 1`)
+    .get(productId);
+  assert.equal(unit.conversion_factor, 1);
+  purchaseItem = getDb().prepare(`SELECT * FROM purchase_items WHERE id = ?`).get(purchaseItem.id);
+  assert.equal(purchaseItem.conversion_factor, 1);
+  assert.equal(purchaseItem.quantity_base, 70);
+
+  const returned = await post("/purchase-returns", {
+    purchase_id: purchase.body.id,
+    date: today,
+    reason: "Regression test",
+    items: [{ purchase_item_id: purchaseItem.id, quantity: 7 }],
+  });
+  assert.equal(returned.status, 201);
+  assert.equal(stockOf(productId), 63);
+});
+
 test("sale return increases stock and reduces customer outstanding", async () => {
   const sale = await post("/sales", {
     customer_id: 1,
@@ -392,6 +524,18 @@ test("payment made reduces supplier balance and decreases cash", async () => {
   assert.equal(bal("supplier", 1), beforeBalance + 80);
 });
 
+test("customer ledger running balance matches balanceOf", async () => {
+  const entries = ledger.statement("customer", 1);
+  assert.ok(entries.length > 0);
+  assert.equal(entries.at(-1).balance, ledger.balanceOf("customer", 1));
+});
+
+test("supplier ledger running balance matches balanceOf", async () => {
+  const entries = ledger.statement("supplier", 1);
+  assert.ok(entries.length > 0);
+  assert.equal(entries.at(-1).balance, ledger.balanceOf("supplier", 1));
+});
+
 test("expense reduces cash and never touches customer or supplier balances", async () => {
   const beforeCash = bal("cash");
   const beforeCustomer = bal("customer", 1);
@@ -432,4 +576,12 @@ test("dashboard totals come back", async () => {
   assert.equal(r.status, 200);
   assert.ok(r.body.stock_value >= 0);
   assert.ok("cash_in_hand" in r.body);
+});
+
+test("profit and loss today matches dashboard estimated profit", async () => {
+  const dashboard = await get("/dashboard");
+  const pnl = await get(`/dashboard/profit-loss?from=${today}&to=${today}`);
+  assert.equal(dashboard.status, 200);
+  assert.equal(pnl.status, 200);
+  assert.equal(pnl.body.net_profit, dashboard.body.today_profit);
 });

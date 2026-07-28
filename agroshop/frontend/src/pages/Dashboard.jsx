@@ -123,11 +123,6 @@ export default function Dashboard() {
               </span>
               <span className="tabular-nums">
                 {money(s.total_amount)}
-                {s.remaining_amount > 0 && (
-                  <span className="ml-2 badge bg-amber-50 text-amber-700">
-                    due {money(s.remaining_amount)}
-                  </span>
-                )}
               </span>
             </li>
           ))}

@@ -56,6 +56,15 @@ export function requireRole(...roles) {
   };
 }
 
+export function requireRouteRole({ full = [], read = [] } = {}) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: "Not signed in" });
+    const role = req.user.role;
+    if (full.includes(role) || (req.method === "GET" && read.includes(role))) return next();
+    return res.status(403).json({ error: "You do not have permission for this action" });
+  };
+}
+
 export function logActivity(user_id, action, table_name, record_id, details) {
   getDb()
     .prepare(

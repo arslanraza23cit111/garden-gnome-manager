@@ -10,26 +10,31 @@ import {
   Wallet,
   BarChart3,
   Settings,
+  History,
   LogOut,
   RotateCcw,
   Sprout,
+  UserCog,
 } from "lucide-react";
 import { clearSession, getUser } from "../api/client.js";
+import { canAccess } from "../lib/roles.js";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/products", label: "Products", icon: Package },
-  { to: "/purchases", label: "Purchase", icon: ShoppingCart },
-  { to: "/sales", label: "Sales", icon: Receipt },
-  { to: "/customers", label: "Customers", icon: Users },
-  { to: "/suppliers", label: "Suppliers", icon: Truck },
-  { to: "/purchase-returns", label: "Purchase returns", icon: RotateCcw },
-  { to: "/sale-returns", label: "Sale returns", icon: RotateCcw },
-  { to: "/payments", label: "Payments", icon: Wallet },
-  { to: "/expenses", label: "Expenses", icon: Wallet },
-  { to: "/accounts", label: "Accounts", icon: BookOpen, phase: 3 },
-  { to: "/reports", label: "Reports", icon: BarChart3, phase: 4 },
-  { to: "/settings", label: "Settings", icon: Settings, phase: 2 },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true, area: "dashboard" },
+  { to: "/products", label: "Products", icon: Package, area: "products" },
+  { to: "/purchases", label: "Purchase", icon: ShoppingCart, area: "purchases" },
+  { to: "/sales", label: "Sales", icon: Receipt, area: "sales" },
+  { to: "/customers", label: "Customers", icon: Users, area: "customers" },
+  { to: "/suppliers", label: "Suppliers", icon: Truck, area: "suppliers" },
+  { to: "/purchase-returns", label: "Purchase returns", icon: RotateCcw, area: "purchase-returns" },
+  { to: "/sale-returns", label: "Sale returns", icon: RotateCcw, area: "sale-returns" },
+  { to: "/payments", label: "Payments", icon: Wallet, area: "payments" },
+  { to: "/expenses", label: "Expenses", icon: Wallet, area: "expenses" },
+  { to: "/accounts", label: "Accounts", icon: BookOpen, phase: 3, area: "accounts" },
+  { to: "/reports", label: "Reports", icon: BarChart3, phase: 4, area: "reports" },
+  { to: "/users", label: "Users", icon: UserCog, area: "users" },
+  { to: "/activity-log", label: "Activity log", icon: History, area: "activity-log" },
+  { to: "/settings", label: "Settings", icon: Settings, phase: 2, area: "settings" },
 ];
 
 export default function Sidebar() {
@@ -49,7 +54,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-2.5 pb-4">
-        {NAV.map(({ to, label, icon: Icon, end, phase }) => (
+        {NAV.filter((item) => canAccess(user?.role, item.area)).map(({ to, label, icon: Icon, end, phase }) => (
           <NavLink
             key={to}
             to={to}

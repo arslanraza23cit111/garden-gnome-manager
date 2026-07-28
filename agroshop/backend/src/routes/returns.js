@@ -15,6 +15,13 @@ function invoiceNumberForSale(sale) {
   return sale?.invoice_number || "SAL-0000";
 }
 
+function effectiveConversionFactor(item) {
+  const quantityInUnit = Number(item.quantity_in_unit || item.quantity);
+  const quantityBase = Number(item.quantity_base || item.quantity);
+  if (quantityInUnit > 0 && quantityBase > 0) return quantityBase / quantityInUnit;
+  return Number(item.conversion_factor || 1);
+}
+
 router.get("/purchase-returns", (_req, res) => {
   res.json(
     getDb()
@@ -72,7 +79,7 @@ router.post("/purchase-returns", (req, res) => {
     const purchaseItem = purchaseItems.get(Number(entry.purchase_item_id));
     if (!purchaseItem) throw new ValidationError(`Line ${idx + 1}: purchase item not found`);
     const qty = num(entry.quantity);
-    const conversionFactor = Number(purchaseItem.conversion_factor || 1);
+    const conversionFactor = effectiveConversionFactor(purchaseItem);
     const originalBase = Number(purchaseItem.quantity_base || purchaseItem.quantity);
     const qtyBase = Math.round(qty * conversionFactor);
     if (!(qty > 0)) throw new ValidationError(`Line ${idx + 1}: quantity must be greater than zero`);
@@ -167,7 +174,7 @@ router.post("/sale-returns", (req, res) => {
     const saleItem = saleItems.get(Number(entry.sale_item_id));
     if (!saleItem) throw new ValidationError(`Line ${idx + 1}: sale item not found`);
     const qty = num(entry.quantity);
-    const conversionFactor = Number(saleItem.conversion_factor || 1);
+    const conversionFactor = effectiveConversionFactor(saleItem);
     const originalBase = Number(saleItem.quantity_base || saleItem.quantity);
     const qtyBase = Math.round(qty * conversionFactor);
     if (!(qty > 0)) throw new ValidationError(`Line ${idx + 1}: quantity must be greater than zero`);
