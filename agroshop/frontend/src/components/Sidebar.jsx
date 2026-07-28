@@ -30,6 +30,7 @@ const NAV = [
   { to: "/sale-returns", label: "Sale returns", icon: RotateCcw, area: "sale-returns" },
   { to: "/payments", label: "Payments", icon: Wallet, area: "payments" },
   { to: "/expenses", label: "Expenses", icon: Wallet, area: "expenses" },
+  { to: "/employees", label: "Employees", icon: UserCog, area: "employees" },
   { to: "/accounts", label: "Accounts", icon: BookOpen, phase: 3, area: "accounts" },
   { to: "/reports", label: "Reports", icon: BarChart3, phase: 4, area: "reports" },
   { to: "/users", label: "Users", icon: UserCog, area: "users" },

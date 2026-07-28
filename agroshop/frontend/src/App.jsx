@@ -12,9 +12,11 @@ import PurchaseReturns from "./pages/PurchaseReturns.jsx";
 import SaleReturns from "./pages/SaleReturns.jsx";
 import Payments from "./pages/Payments.jsx";
 import Expenses from "./pages/Expenses.jsx";
+import Employees from "./pages/Employees.jsx";
 import Users from "./pages/Users.jsx";
 import ActivityLog from "./pages/ActivityLog.jsx";
 import Accounts from "./pages/Accounts.jsx";
+import Settings from "./pages/Settings.jsx";
 import ComingSoon from "./pages/ComingSoon.jsx";
 import { canAccess } from "./lib/roles.js";
 
@@ -59,14 +61,8 @@ export default function App() {
         <Route path="/sale-returns" element={<ProtectedPage area="sale-returns"><SaleReturns /></ProtectedPage>} />
         <Route path="/payments" element={<ProtectedPage area="payments"><Payments /></ProtectedPage>} />
         <Route path="/expenses" element={<ProtectedPage area="expenses"><Expenses /></ProtectedPage>} />
-        <Route
-          path="/accounts"
-          element={
-            <ProtectedPage area="accounts">
-              <Accounts />
-            </ProtectedPage>
-          }
-        />
+        <Route path="/employees" element={<ProtectedPage area="employees"><Employees /></ProtectedPage>} />
+        <Route path="/accounts" element={<ProtectedPage area="accounts"><Accounts /></ProtectedPage>} />
         <Route
           path="/reports"
           element={
@@ -77,14 +73,7 @@ export default function App() {
         />
         <Route path="/users" element={<ProtectedPage area="users"><Users /></ProtectedPage>} />
         <Route path="/activity-log" element={<ProtectedPage area="activity-log"><ActivityLog /></ProtectedPage>} />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedPage area="settings">
-              <ComingSoon title="Settings & Backup" phase={2} detail='Shop details on invoices, print mode, user password, and the manual "Backup now" copy of the SQLite file.' />
-            </ProtectedPage>
-          }
-        />
+        <Route path="/settings" element={<ProtectedPage area="settings"><Settings /></ProtectedPage>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>

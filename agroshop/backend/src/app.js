@@ -12,9 +12,11 @@ import supplierRoutes from "./routes/suppliers.js";
 import returnsRoutes from "./routes/returns.js";
 import paymentRoutes from "./routes/payments.js";
 import expenseRoutes from "./routes/expenses.js";
+import employeeRoutes from "./routes/employees.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import userRoutes from "./routes/users.js";
 import activityLogRoutes from "./routes/activityLog.js";
+import settingsRoutes from "./routes/settings.js";
 
 const full = (...roles) => ({ full: ["admin", "manager", ...roles] });
 const fullRead = (writeRoles, readRoles) => ({
@@ -43,9 +45,11 @@ export function createApp() {
   app.use("/api", requireAuth, returnsRoutes);
   app.use("/api/payments", requireAuth, requireRouteRole(full(["accountant"])), paymentRoutes);
   app.use("/api/expenses", requireAuth, requireRouteRole(full(["accountant"])), expenseRoutes);
+  app.use("/api/employees", requireAuth, employeeRoutes);
   app.use("/api/dashboard", requireAuth, requireRouteRole(full(["accountant"])), dashboardRoutes);
   app.use("/api/users", requireAuth, requireRole("admin"), userRoutes);
   app.use("/api/activity-log", requireAuth, requireRole("admin"), activityLogRoutes);
+  app.use("/api/settings", requireAuth, settingsRoutes);
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "Unknown endpoint" }));
 
