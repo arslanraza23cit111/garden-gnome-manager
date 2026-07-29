@@ -17,6 +17,7 @@ const { createApp } = await import("../src/app.js");
 const { getDb, closeDb } = await import("../src/db/connection.js");
 const { hashPassword } = await import("../src/lib/auth.js");
 const ledger = await import("../src/services/ledgerService.js");
+const { stockByProduct, totalStockValue } = await import("../src/services/stockService.js");
 
 let server;
 let base;
@@ -196,6 +197,7 @@ test("purchasing 2 large units adds their exact base quantity", async () => {
   assert.equal(unit.status, 201);
 
   const before = stockOf(productId);
+  const beforeTotalStockValue = totalStockValue();
   const purchase = await post("/purchases", {
     supplier_id: 1,
     date: today,
@@ -218,6 +220,97 @@ test("purchasing 2 large units adds their exact base quantity", async () => {
   assert.equal(item.conversion_factor, 50000);
   assert.equal(item.quantity_in_unit, 2);
   assert.equal(item.quantity_base, 100000);
+  const batch = getDb().prepare(`SELECT * FROM product_batches WHERE batch_number = 'MU-BAG'`).get();
+  assert.equal(batch.purchase_rate, 0.08);
+  const productStock = stockByProduct().find((p) => p.id === productId);
+  assert.equal(productStock.stock_value, 8000);
+  assert.equal(Number((totalStockValue() - beforeTotalStockValue).toFixed(2)), 8000);
+});
+
+test("multi-unit sale cost rate remains per base unit and profit stays sane", async () => {
+  const saleDate = "2026-02-14";
+  const productId = createProduct("Bagged Urea Profit", "g", 4000, 5000);
+  const unit = await post(`/products/${productId}/units`, {
+    unit_label: "50kg bag",
+    conversion_factor: 50000,
+    sale_price: 5000,
+    is_default: true,
+  });
+  assert.equal(unit.status, 201);
+
+  const purchase = await post("/purchases", {
+    supplier_id: 1,
+    date: saleDate,
+    paid_amount: 0,
+    items: [
+      {
+        product_id: productId,
+        product_unit_id: unit.body.id,
+        quantity_in_unit: 2,
+        batch_number: "MU-PROFIT",
+        expiry_date: "2030-01-01",
+        rate: 4000,
+      },
+    ],
+  });
+  assert.equal(purchase.status, 201);
+
+  const sale = await post("/sales", {
+    customer_id: 1,
+    date: saleDate,
+    paid_amount: 2500,
+    payment_method: "cash",
+    items: [{ product_id: productId, product_unit_id: unit.body.id, quantity_in_unit: 0.5, rate: 5000 }],
+  });
+  assert.equal(sale.status, 201);
+
+  const item = getDb().prepare(`SELECT * FROM sale_items WHERE sale_id = ?`).get(sale.body.id);
+  assert.equal(item.cost_rate, 0.08);
+  assert.equal(item.quantity, 25000);
+  assert.equal(Number((item.cost_rate * item.quantity).toFixed(2)), 2000);
+
+  const pnl = await get(`/dashboard/profit-loss?from=${saleDate}&to=${saleDate}`);
+  assert.equal(pnl.status, 200);
+  assert.equal(pnl.body.revenue, 2500);
+  assert.equal(pnl.body.cost_of_goods_sold, 2000);
+  assert.equal(pnl.body.gross_profit, 500);
+  assert.equal(pnl.body.net_profit, 500);
+});
+
+test("legacy quantity and rate stock valuation is unchanged", async () => {
+  const saleDate = "2026-02-15";
+  const productId = createProduct("Legacy Rate Product", "piece", 12.5, 20);
+  const beforeTotalStockValue = totalStockValue();
+  const purchase = await post("/purchases", {
+    supplier_id: 1,
+    date: saleDate,
+    paid_amount: 0,
+    items: [{ product_id: productId, batch_number: "LEGACY-RATE", expiry_date: "2030-01-01", quantity: 7, rate: 12.5 }],
+  });
+  assert.equal(purchase.status, 201);
+
+  const batch = getDb().prepare(`SELECT * FROM product_batches WHERE batch_number = 'LEGACY-RATE'`).get();
+  assert.equal(batch.purchase_rate, 12.5);
+  const productStock = stockByProduct().find((p) => p.id === productId);
+  assert.equal(productStock.current_stock, 7);
+  assert.equal(productStock.stock_value, 87.5);
+  assert.equal(Number((totalStockValue() - beforeTotalStockValue).toFixed(2)), 87.5);
+
+  const sale = await post("/sales", {
+    customer_id: 1,
+    date: saleDate,
+    paid_amount: 40,
+    payment_method: "cash",
+    items: [{ product_id: productId, quantity: 2, rate: 20 }],
+  });
+  assert.equal(sale.status, 201);
+  const item = getDb().prepare(`SELECT * FROM sale_items WHERE sale_id = ?`).get(sale.body.id);
+  assert.equal(item.cost_rate, 12.5);
+  assert.equal(Number((item.cost_rate * item.quantity).toFixed(2)), 25);
+
+  const remainingStock = stockByProduct().find((p) => p.id === productId);
+  assert.equal(remainingStock.current_stock, 5);
+  assert.equal(remainingStock.stock_value, 62.5);
 });
 
 test("sale decreases stock and raises customer receivable", async () => {

@@ -106,6 +106,9 @@ router.post("/", (req, res) => {
     if (!it.product_id) throw new ValidationError(`Line ${idx + 1}: choose a product`);
     const discount = num(it.discount);
     const tax = num(it.tax);
+    const effectiveConversionFactor =
+      unitSnapshot.quantity_in_unit > 0 ? unitSnapshot.quantity_base / unitSnapshot.quantity_in_unit : 1;
+    const ratePerBaseUnit = effectiveConversionFactor > 0 ? rate / effectiveConversionFactor : rate;
     return {
       product_id: Number(it.product_id),
       batch_number: String(it.batch_number || "-").trim() || "-",
@@ -116,6 +119,7 @@ router.post("/", (req, res) => {
       quantity_in_unit: unitSnapshot.quantity_in_unit,
       quantity_base: unitSnapshot.quantity_base,
       rate,
+      rate_per_base_unit: ratePerBaseUnit,
       discount,
       tax,
       line_total: round2(qty * rate - discount + tax),
@@ -180,7 +184,7 @@ router.post("/", (req, res) => {
         batch_number: l.batch_number,
         expiry_date: l.expiry_date,
         quantity: l.quantity_base,
-        rate: l.rate,
+        rate: l.rate_per_base_unit,
       });
       // keep the product's reference purchase price current
       db.prepare(`UPDATE products SET purchase_price = ? WHERE id = ?`).run(l.rate, l.product_id);
