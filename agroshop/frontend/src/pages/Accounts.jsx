@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileText, Landmark, Scale, TrendingUp, Users, Wallet } from "lucide-react";
+import { Download, FileText, Landmark, Printer, Scale, TrendingUp, Users, Wallet } from "lucide-react";
 import { api, money, todayStr } from "../api/client.js";
 import { Alert, Field } from "../components/Modal.jsx";
+import StatementPrint from "../components/StatementPrint.jsx";
 
 const REPORTS = [
   { key: "customer", label: "Customer ledger", icon: Users },
@@ -253,6 +254,7 @@ export default function Accounts() {
   const [trialBalance, setTrialBalance] = useState({ rows: [], totals: {} });
   const [profitLoss, setProfitLoss] = useState({});
   const [balanceSheet, setBalanceSheet] = useState({ assets: [], liabilities: [] });
+  const [printStatement, setPrintStatement] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -344,6 +346,25 @@ export default function Accounts() {
   }, [active, asOf]);
 
   const groupedDaily = useMemo(() => Object.entries(daily.groups || {}), [daily]);
+  const selectedParty = useMemo(() => {
+    if (active === "customer") return customers.find((customer) => String(customer.id) === selectedCustomer);
+    if (active === "supplier") return suppliers.find((supplier) => String(supplier.id) === selectedSupplier);
+    return null;
+  }, [active, customers, selectedCustomer, selectedSupplier, suppliers]);
+
+  if (printStatement && (active === "customer" || active === "supplier")) {
+    return (
+      <StatementPrint
+        partyType={active}
+        party={selectedParty}
+        statement={statement}
+        from={from}
+        to={to}
+        shop={statement.shop}
+        onBack={() => setPrintStatement(false)}
+      />
+    );
+  }
 
   function exportStatement() {
     downloadCsv(`${active}-ledger.csv`, [
@@ -482,10 +503,19 @@ export default function Accounts() {
                 <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
               </Field>
               {LEDGER_REPORTS.includes(active) && (
-                <div className="flex items-end">
+                <div className="flex flex-wrap items-end gap-2">
                   <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
                     Balance: <span className="font-semibold text-slate-800">{money(statement.balance)}</span>
                   </div>
+                  {(active === "customer" || active === "supplier") && (
+                    <button
+                      className="btn-primary"
+                      disabled={loading || !selectedParty}
+                      onClick={() => setPrintStatement(true)}
+                    >
+                      <Printer size={16} /> Print statement
+                    </button>
+                  )}
                 </div>
               )}
             </>

@@ -14,6 +14,7 @@ import paymentRoutes from "./routes/payments.js";
 import expenseRoutes from "./routes/expenses.js";
 import employeeRoutes from "./routes/employees.js";
 import dashboardRoutes from "./routes/dashboard.js";
+import reportsRoutes from "./routes/reports.js";
 import userRoutes from "./routes/users.js";
 import activityLogRoutes from "./routes/activityLog.js";
 import settingsRoutes from "./routes/settings.js";
@@ -47,6 +48,7 @@ export function createApp() {
   app.use("/api/expenses", requireAuth, requireRouteRole(full(["accountant"])), expenseRoutes);
   app.use("/api/employees", requireAuth, requireRouteRole(full(["accountant"])), employeeRoutes);
   app.use("/api/dashboard", requireAuth, requireRouteRole(full(["accountant"])), dashboardRoutes);
+  app.use("/api/reports", requireAuth, requireRouteRole(full(["accountant"])), reportsRoutes);
   app.use("/api/users", requireAuth, requireRole("admin"), userRoutes);
   app.use("/api/activity-log", requireAuth, requireRole("admin"), activityLogRoutes);
   app.use("/api/settings", requireAuth, settingsRoutes);

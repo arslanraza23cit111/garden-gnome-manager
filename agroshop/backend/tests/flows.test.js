@@ -35,6 +35,10 @@ async function call(method, path, body) {
 }
 const post = (p, b) => call("POST", p, b);
 const get = (p) => call("GET", p);
+const rawGet = (p) =>
+  fetch(`${base}${p}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 async function loginAs(username, password) {
   const res = await fetch(`${base}/auth/login`, {
     method: "POST",
@@ -713,6 +717,82 @@ test("dashboard totals come back", async () => {
   assert.equal(r.status, 200);
   assert.ok(r.body.stock_value >= 0);
   assert.ok("cash_in_hand" in r.body);
+});
+
+test("reports aggregate sales purchases stock profit and outstanding balances", async () => {
+  const reportDate = "2026-04-04";
+  const productId = createProduct("Report Fertilizer", "bag", 20, 30);
+  const supplierId = Number(
+    getDb().prepare(`INSERT INTO suppliers (name, contact) VALUES ('Report Supplier', '0300')`).run().lastInsertRowid,
+  );
+  const customerId = Number(
+    getDb().prepare(`INSERT INTO customers (name, mobile) VALUES ('Report Customer', '0311')`).run().lastInsertRowid,
+  );
+
+  const purchase = await post("/purchases", {
+    supplier_id: supplierId,
+    date: reportDate,
+    paid_amount: 0,
+    items: [{ product_id: productId, batch_number: "REP-1", expiry_date: "2026-05-01", quantity: 10, rate: 20 }],
+  });
+  assert.equal(purchase.status, 201);
+
+  const sale = await post("/sales", {
+    customer_id: customerId,
+    date: reportDate,
+    paid_amount: 30,
+    payment_method: "cash",
+    items: [{ product_id: productId, quantity: 4, rate: 30 }],
+  });
+  assert.equal(sale.status, 201);
+
+  const sales = await get(`/reports/sales?from=${reportDate}&to=${reportDate}`);
+  assert.equal(sales.status, 200);
+  assert.equal(sales.body.totals.revenue, 120);
+  assert.equal(sales.body.totals.quantity, 4);
+  assert.equal(sales.body.totals.invoice_count, 1);
+  assert.equal(sales.body.by_product.find((r) => r.product_id === productId).revenue, 120);
+  assert.equal(sales.body.by_customer.find((r) => r.customer_id === customerId).revenue, 120);
+
+  const purchases = await get(`/reports/purchases?from=${reportDate}&to=${reportDate}`);
+  assert.equal(purchases.status, 200);
+  assert.equal(purchases.body.totals.amount, 200);
+  assert.equal(purchases.body.totals.quantity, 10);
+  assert.equal(purchases.body.by_supplier.find((r) => r.supplier_id === supplierId).amount, 200);
+
+  const profit = await get(`/reports/profit?from=${reportDate}&to=${reportDate}`);
+  assert.equal(profit.status, 200);
+  assert.equal(profit.body.totals.revenue, 120);
+  assert.equal(profit.body.totals.cost_of_goods_sold, 80);
+  assert.equal(profit.body.totals.gross_profit, 40);
+
+  const stock = await get("/reports/stock?expiry_days=90");
+  assert.equal(stock.status, 200);
+  const batch = stock.body.by_batch.find((r) => r.product_id === productId && r.batch_number === "REP-1");
+  assert.equal(batch.quantity, 6);
+  assert.equal(batch.stock_value, 120);
+  assert.ok(stock.body.near_expiry.some((r) => r.batch_number === "REP-1"));
+
+  const outstanding = await get(`/reports/outstanding?to=${reportDate}`);
+  assert.equal(outstanding.status, 200);
+  assert.equal(outstanding.body.receivables.find((r) => r.id === customerId).balance, 90);
+  assert.equal(outstanding.body.payables.find((r) => r.id === supplierId).balance, 200);
+});
+
+test("report CSV export returns CSV and logs activity", async () => {
+  const before = getDb()
+    .prepare(`SELECT COUNT(*) c FROM activity_log WHERE action = 'export' AND table_name = 'reports'`)
+    .get().c;
+  const res = await rawGet("/reports/sales?from=2026-04-04&to=2026-04-04&format=csv");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type"), /text\/csv/);
+  const text = await res.text();
+  assert.match(text, /Totals/);
+  assert.match(text, /Revenue/);
+  const after = getDb()
+    .prepare(`SELECT COUNT(*) c FROM activity_log WHERE action = 'export' AND table_name = 'reports'`)
+    .get().c;
+  assert.equal(after, before + 1);
 });
 
 test("profit and loss today matches dashboard estimated profit", async () => {

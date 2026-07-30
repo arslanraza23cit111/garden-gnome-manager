@@ -16,8 +16,8 @@ import Employees from "./pages/Employees.jsx";
 import Users from "./pages/Users.jsx";
 import ActivityLog from "./pages/ActivityLog.jsx";
 import Accounts from "./pages/Accounts.jsx";
+import Reports from "./pages/Reports.jsx";
 import Settings from "./pages/Settings.jsx";
-import ComingSoon from "./pages/ComingSoon.jsx";
 import { canAccess } from "./lib/roles.js";
 
 const FIRST_PATH = {
@@ -67,7 +67,7 @@ export default function App() {
           path="/reports"
           element={
             <ProtectedPage area="reports">
-              <ComingSoon title="Reports & Analytics" phase={4} detail="Sales, purchase, stock, expiry, profit and outstanding reports with CSV/PDF export." />
+              <Reports />
             </ProtectedPage>
           }
         />

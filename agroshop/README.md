@@ -116,6 +116,7 @@ non-negotiable rules:
 | Payments        | Receive customer payments and pay suppliers from one screen          |
 | Expenses        | Post cash/bank expenses with category filters and a running total   |
 | Dashboard       | Expense totals, receipt/payment metrics, and cash/bank balances now reflect all ledger activity |
+| Reports & Analytics | Sales, purchase, stock, expiry, profit and outstanding reports with CSV export and print views |
 
 The **database schema for every later phase already exists** (returns, payments,
 expenses, employees, salary payments, activity log, settings) — later phases add
