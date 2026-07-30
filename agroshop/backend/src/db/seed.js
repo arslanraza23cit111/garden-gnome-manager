@@ -44,7 +44,7 @@ if (db.prepare(`SELECT COUNT(*) c FROM products`).get().c > 0) {
 
 // ---- products --------------------------------------------------------------
 const productRows = [
-  ["Urea 46%", "Fauji Fertilizer", "Fertilizer", "Granular", "bag", "50 kg", 4300, 4550, 4600, 4500, 20],
+  ["Urea 46%", "Fauji Fertilizer", "Fertilizer", "Granular", "g", "50 kg", 4300, 4550, 4600, 4500, 20],
   ["DAP", "Engro", "Fertilizer", "Granular", "bag", "50 kg", 11200, 11800, 11900, 11700, 15],
   ["SOP Potash", "FFC", "Fertilizer", "Granular", "bag", "50 kg", 12500, 13200, 13300, 13100, 10],
   ["Confidor 200 SL", "Bayer", "Pesticide", "Insecticide", "bottle", "250 ml", 1850, 2100, 2150, 2050, 12],
@@ -64,10 +64,20 @@ for (const r of productRows) insertProduct.run(...r);
 
 db.prepare(
   `INSERT INTO product_units (product_id, unit_label, conversion_factor, sale_price, is_active, is_default)
-   SELECT id, '1kg loose', 1, 91, 1, 0
+   SELECT id, '50kg bag', 50000, 4550, 1, 1
+     FROM products
+   WHERE name = 'Urea 46%'`,
+).run();
+db.prepare(
+  `INSERT INTO product_units (product_id, unit_label, conversion_factor, sale_price, is_active, is_default)
+   SELECT id, '1kg loose', 1000, 91, 1, 0
      FROM products
     WHERE name = 'Urea 46%'`,
 ).run();
+
+const ureaBagUnitId = db
+  .prepare(`SELECT id FROM product_units WHERE product_id = 1 AND unit_label = '50kg bag'`)
+  .get().id;
 
 // ---- customers -------------------------------------------------------------
 const customerRows = [
@@ -136,7 +146,14 @@ await api("/purchases", {
   paid_amount: 300000,
   payment_method: "bank",
   items: [
-    { product_id: 1, batch_number: "URE-2401", expiry_date: null, quantity: 120, rate: 4300 },
+    {
+      product_id: 1,
+      product_unit_id: ureaBagUnitId,
+      quantity_in_unit: 120,
+      batch_number: "URE-2401",
+      expiry_date: null,
+      rate: 4300,
+    },
     { product_id: 7, batch_number: "ZN-2402", expiry_date: d(400), quantity: 80, rate: 420 },
   ],
 });
@@ -182,7 +199,7 @@ await api("/sales", {
   paid_amount: 50000,
   payment_method: "cash",
   items: [
-    { product_id: 1, quantity: 20, rate: 4550 },
+    { product_id: 1, product_unit_id: ureaBagUnitId, quantity_in_unit: 20, rate: 4550 },
     { product_id: 4, quantity: 4, rate: 2100 },
   ],
 });
@@ -217,7 +234,7 @@ await api("/sales", {
   items: [
     { product_id: 6, quantity: 4, rate: 1150 },
     { product_id: 8, quantity: 2, rate: 940 },
-    { product_id: 1, quantity: 1, rate: 4550 },
+    { product_id: 1, product_unit_id: ureaBagUnitId, quantity_in_unit: 1, rate: 4550 },
   ],
 });
 

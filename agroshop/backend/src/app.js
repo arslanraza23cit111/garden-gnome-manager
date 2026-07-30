@@ -18,7 +18,7 @@ import userRoutes from "./routes/users.js";
 import activityLogRoutes from "./routes/activityLog.js";
 import settingsRoutes from "./routes/settings.js";
 
-const full = (...roles) => ({ full: ["admin", "manager", ...roles] });
+const full = (...roles) => ({ full: ["admin", "manager", ...roles.flat()] });
 const fullRead = (writeRoles, readRoles) => ({
   full: ["admin", "manager", ...writeRoles],
   read: readRoles,
@@ -45,7 +45,7 @@ export function createApp() {
   app.use("/api", requireAuth, returnsRoutes);
   app.use("/api/payments", requireAuth, requireRouteRole(full(["accountant"])), paymentRoutes);
   app.use("/api/expenses", requireAuth, requireRouteRole(full(["accountant"])), expenseRoutes);
-  app.use("/api/employees", requireAuth, employeeRoutes);
+  app.use("/api/employees", requireAuth, requireRouteRole(full(["accountant"])), employeeRoutes);
   app.use("/api/dashboard", requireAuth, requireRouteRole(full(["accountant"])), dashboardRoutes);
   app.use("/api/users", requireAuth, requireRole("admin"), userRoutes);
   app.use("/api/activity-log", requireAuth, requireRole("admin"), activityLogRoutes);

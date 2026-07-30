@@ -130,6 +130,31 @@ test("accountant gets 403 on user management", async () => {
   assert.match(r.body.error, /permission/i);
 });
 
+test("employee routes are restricted to admin manager and accountant", async () => {
+  const salesmanToken = await loginAs("salesman", "sales123");
+  const accountantToken = await loginAs("accountant", "accounts123");
+
+  const salesmanList = await callAs(salesmanToken, "GET", "/employees");
+  assert.equal(salesmanList.status, 403);
+  assert.match(salesmanList.body.error, /permission/i);
+
+  const salesmanCreate = await callAs(salesmanToken, "POST", "/employees", {
+    name: "Blocked Employee",
+    salary: 1000,
+  });
+  assert.equal(salesmanCreate.status, 403);
+  assert.match(salesmanCreate.body.error, /permission/i);
+
+  const accountantList = await callAs(accountantToken, "GET", "/employees");
+  assert.equal(accountantList.status, 200);
+
+  const accountantCreate = await callAs(accountantToken, "POST", "/employees", {
+    name: "Accountant Employee",
+    salary: 1000,
+  });
+  assert.equal(accountantCreate.status, 201);
+});
+
 test("activity log is admin-only and filterable", async () => {
   const accountantToken = await loginAs("accountant", "accounts123");
   const forbidden = await callAs(accountantToken, "GET", "/activity-log");
@@ -225,6 +250,25 @@ test("purchasing 2 large units adds their exact base quantity", async () => {
   const productStock = stockByProduct().find((p) => p.id === productId);
   assert.equal(productStock.stock_value, 8000);
   assert.equal(Number((totalStockValue() - beforeTotalStockValue).toFixed(2)), 8000);
+});
+
+test("product units reject non-representable conversion factors", async () => {
+  const productId = createProduct("Fractional Unit Product", "g", 10, 15);
+  const zero = await post(`/products/${productId}/units`, {
+    unit_label: "bad zero",
+    conversion_factor: 0,
+    sale_price: 15,
+  });
+  assert.equal(zero.status, 400);
+  assert.match(zero.body.error, /integer greater than or equal to 1/i);
+
+  const fractional = await post(`/products/${productId}/units`, {
+    unit_label: "bad fraction",
+    conversion_factor: 0.5,
+    sale_price: 15,
+  });
+  assert.equal(fractional.status, 400);
+  assert.match(fractional.body.error, /integer greater than or equal to 1/i);
 });
 
 test("multi-unit sale cost rate remains per base unit and profit stays sane", async () => {

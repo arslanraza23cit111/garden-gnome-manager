@@ -50,9 +50,10 @@ router.post("/", (req, res) => {
   ensureProduct(id);
   const body = req.body ?? {};
   required(body.unit_label, "Unit label");
-  const conversionFactor = Math.round(num(body.conversion_factor));
+  const conversionFactor = num(body.conversion_factor);
   const salePrice = num(body.sale_price);
-  if (!(conversionFactor > 0)) throw new ValidationError("Conversion factor must be greater than zero");
+  if (!Number.isInteger(conversionFactor) || conversionFactor < 1)
+    throw new ValidationError("Conversion factor must be an integer greater than or equal to 1");
   if (salePrice < 0) throw new ValidationError("Sale price cannot be negative");
 
   const unitId = tx(() => {
