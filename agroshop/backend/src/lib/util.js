@@ -26,6 +26,6 @@ export function required(value, label) {
 
 /** Next invoice number like SL-0001 / PR-0001, per table. */
 export function nextInvoiceNumber(table, prefix) {
-  const row = getDb().prepare(`SELECT COUNT(*) AS c FROM ${table}`).get();
-  return `${prefix}-${String(row.c + 1).padStart(4, "0")}`;
+  const row = getDb().prepare(`SELECT COALESCE(MAX(id), 0) AS last_id FROM ${table}`).get();
+  return `${prefix}-${String(row.last_id + 1).padStart(4, "0")}`;
 }

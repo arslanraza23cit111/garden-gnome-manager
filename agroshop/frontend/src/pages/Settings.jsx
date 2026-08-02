@@ -9,6 +9,9 @@ const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
 export default function Settings() {
   const [folder, setFolder] = useState(() => localStorage.getItem(PATH_KEY) || "");
   const [last, setLast] = useState(null);
+  const [autoLast, setAutoLast] = useState(null);
+  const [autoStatus, setAutoStatus] = useState(null);
+  const [autoError, setAutoError] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -16,7 +19,12 @@ export default function Settings() {
   const load = () =>
     api
       .get("/settings/backup/last")
-      .then((r) => setLast(r?.lastBackupAt || null))
+      .then((r) => {
+        setLast(r?.lastBackupAt || null);
+        setAutoLast(r?.lastAutoBackupAt || null);
+        setAutoStatus(r?.lastAutoBackupStatus || null);
+        setAutoError(r?.lastAutoBackupError || "");
+      })
       .catch((e) => setError(e.message));
 
   useEffect(() => {
@@ -41,6 +49,7 @@ export default function Settings() {
   }
 
   const lastDate = last ? new Date(last) : null;
+  const autoLastDate = autoLast ? new Date(autoLast) : null;
   const stale = !lastDate || Date.now() - lastDate.getTime() > THREE_DAYS;
 
   return (
@@ -69,6 +78,28 @@ export default function Settings() {
               <strong>No backup taken yet.</strong>
               <div className="mt-0.5 text-xs">Take one today so a PC failure cannot lose your records.</div>
             </>
+          )}
+          <div className="mt-3 text-sm">
+            {autoLastDate ? (
+              <>
+                Last automatic backup: <strong>{autoLastDate.toLocaleString()}</strong>
+                {autoStatus === "failure" ? (
+                  <span className="ml-1 text-rose-700">— failed</span>
+                ) : (
+                  <span className="ml-1 text-slate-500">— success</span>
+                )}
+              </>
+            ) : (
+              <>
+                <strong>No automatic backup has run yet.</strong>
+                <div className="mt-0.5 text-xs text-slate-500">
+                  A scheduled backup will run when a backup folder is configured.
+                </div>
+              </>
+            )}
+          </div>
+          {autoStatus === "failure" && autoError && (
+            <div className="mt-1 text-xs text-rose-700">Automatic backup failed: {autoError}</div>
           )}
         </div>
       </div>

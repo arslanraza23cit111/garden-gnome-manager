@@ -1,5 +1,7 @@
 # Welcome to your Lovable project
 
+![CI](https://github.com/arslanraza23cit111/garden-gnome-manager/actions/workflows/test.yml/badge.svg)
+
 This project was built with [Lovable](https://lovable.dev).
 
 ## Build with Lovable

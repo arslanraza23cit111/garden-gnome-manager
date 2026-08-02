@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
 CREATE TABLE IF NOT EXISTS purchases (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   supplier_id      INTEGER NOT NULL REFERENCES suppliers(id),
-  invoice_number   TEXT NOT NULL,
+  invoice_number   TEXT NOT NULL UNIQUE,
   date             TEXT NOT NULL,
   total_amount     REAL NOT NULL DEFAULT 0,
   discount_amount  REAL NOT NULL DEFAULT 0,
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS purchase_items (
 CREATE TABLE IF NOT EXISTS sales (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   customer_id      INTEGER NOT NULL REFERENCES customers(id),
-  invoice_number   TEXT NOT NULL,
+  invoice_number   TEXT NOT NULL UNIQUE,
   date             TEXT NOT NULL,
   total_amount     REAL NOT NULL DEFAULT 0,
   discount_amount  REAL NOT NULL DEFAULT 0,

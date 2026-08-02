@@ -4,6 +4,7 @@ import { decreaseStockFEFO } from "../services/stockService.js";
 import * as ledger from "../services/ledgerService.js";
 import { ValidationError, required, num, round2, today, nextInvoiceNumber } from "../lib/util.js";
 import { logActivity } from "../lib/auth.js";
+import { SHOP_NAME, SHOP_ADDRESS, SHOP_PHONE, SHOP_EMAIL } from "../lib/shopIdentity.js";
 
 const router = Router();
 
@@ -79,7 +80,14 @@ router.get("/:id", (req, res) => {
     )
     .all(sale.id);
   const settings = Object.fromEntries(db.prepare(`SELECT key, value FROM settings`).all().map((r) => [r.key, r.value]));
-  res.json({ ...sale, items, shop: settings });
+  const shop = {
+    ...settings,
+    shop_name: SHOP_NAME,
+    shop_address: SHOP_ADDRESS,
+    shop_phone: SHOP_PHONE,
+    shop_email: SHOP_EMAIL,
+  };
+  res.json({ ...sale, items, shop });
 });
 
 /**
@@ -151,6 +159,9 @@ router.post("/", (req, res) => {
   }
 
   const invoice = String(body.invoice_number || nextInvoiceNumber("sales", "SAL")).trim();
+  if (getDb().prepare(`SELECT 1 FROM sales WHERE invoice_number = ? LIMIT 1`).get(invoice)) {
+    throw new ValidationError(`Invoice number ${invoice} already exists`);
+  }
 
   const id = tx(() => {
     const info = db

@@ -17,7 +17,10 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
   }, [printMode]);
 
   if (!sale) return null;
-  const shopName = shop?.shop_name || "AgroShop";
+  const shopName = shop?.shop_name || "MADINA TRADERS";
+  const shopAddress = shop?.shop_address || "MADINA TRADERS NAWAN JANDAWALA SARGHODHA ROAD";
+  const shopPhone = shop?.shop_phone || "0308-7616000";
+  const shopEmail = shop?.shop_email || "rajputali78678690@gmail.com";
 
   return (
     <div>
@@ -80,8 +83,9 @@ function A4({ sale, shop, shopName }) {
         <div>
           <h1 className="text-xl font-bold uppercase tracking-wide">{shopName}</h1>
           <p className="text-xs text-slate-600">{shop?.shop_tagline}</p>
-          <p className="text-xs text-slate-600">{shop?.shop_address}</p>
-          <p className="text-xs text-slate-600">Phone: {shop?.shop_phone}</p>
+          <p className="text-xs text-slate-600">{shopAddress}</p>
+          <p className="text-xs text-slate-600">Phone: {shopPhone}</p>
+          <p className="text-xs text-slate-600">Email: {shopEmail}</p>
         </div>
         <div className="text-right text-xs">
           <p className="text-base font-semibold">SALE INVOICE</p>
@@ -158,8 +162,9 @@ function Thermal({ sale, shopName, shop, width }) {
     <div className={`mx-auto receipt ${width === 58 ? "receipt-58" : ""} bg-white p-2`}>
       <div className="text-center">
         <p className="text-[13px] font-bold uppercase">{shopName}</p>
-        <p>{shop?.shop_address}</p>
-        <p>{shop?.shop_phone}</p>
+        <p>{shopAddress}</p>
+        <p>{shopPhone}</p>
+        <p>{shopEmail}</p>
       </div>
       <p className="my-1 border-t border-dashed border-slate-400" />
       <div className="flex justify-between">

@@ -21,7 +21,31 @@ export function getDb() {
   const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
   db.exec(schema);
   migrateUnits(db);
+  migrateInvoiceNumberIndexes(db);
   return db;
+}
+
+function migrateInvoiceNumberIndexes(db) {
+  for (const { table, index } of [
+    { table: "purchases", index: "idx_purchases_invoice_number" },
+    { table: "sales", index: "idx_sales_invoice_number" },
+  ]) {
+    const duplicates = db
+      .prepare(
+        `SELECT invoice_number, COUNT(*) AS c FROM ${table} GROUP BY invoice_number HAVING c > 1`,
+      )
+      .all();
+    if (duplicates.length) {
+      console.warn(
+        `WARNING: duplicate invoice_number values found in ${table}. ` +
+          `Unique index ${index} was skipped to avoid migration failure. ` +
+          `Resolve duplicates manually before re-running this migration. ` +
+          duplicates.map((r) => `${r.invoice_number} (${r.c})`).join(", "),
+      );
+      continue;
+    }
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ${index} ON ${table}(invoice_number)`);
+  }
 }
 
 export function closeDb() {

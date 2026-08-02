@@ -18,7 +18,10 @@ export default function StatementPrint({
     return () => window.clearTimeout(timer);
   }, [autoPrint]);
 
-  const shopName = shop?.shop_name || "AgroShop";
+  const shopName = shop?.shop_name || "MADINA TRADERS";
+  const shopAddress = shop?.shop_address || "MADINA TRADERS NAWAN JANDAWALA SARGHODHA ROAD";
+  const shopPhone = shop?.shop_phone || "0308-7616000";
+  const shopEmail = shop?.shop_email || "rajputali78678690@gmail.com";
   const partyLabel = partyType === "supplier" ? "Supplier" : "Customer";
   const partyName = party?.name || `Selected ${partyLabel.toLowerCase()}`;
   const fromLabel = from || "start";
@@ -44,8 +47,9 @@ export default function StatementPrint({
           <div>
             <h1 className="text-xl font-bold uppercase tracking-wide">{shopName}</h1>
             <p className="text-xs text-slate-600">{shop?.shop_tagline}</p>
-            <p className="text-xs text-slate-600">{shop?.shop_address}</p>
-            <p className="text-xs text-slate-600">Phone: {shop?.shop_phone}</p>
+            <p className="text-xs text-slate-600">{shopAddress}</p>
+            <p className="text-xs text-slate-600">Phone: {shopPhone}</p>
+            <p className="text-xs text-slate-600">Email: {shopEmail}</p>
           </div>
           <div className="text-right text-xs">
             <p className="text-base font-semibold">{partyLabel.toUpperCase()} STATEMENT</p>

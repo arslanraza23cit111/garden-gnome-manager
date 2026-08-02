@@ -133,6 +133,9 @@ router.post("/", (req, res) => {
   const remaining = round2(total - paid);
   const method = body.payment_method || (paid > 0 ? "cash" : "credit");
   const invoice = String(body.invoice_number || nextInvoiceNumber("purchases", "PUR")).trim();
+  if (getDb().prepare(`SELECT 1 FROM purchases WHERE invoice_number = ? LIMIT 1`).get(invoice)) {
+    throw new ValidationError(`Invoice number ${invoice} already exists`);
+  }
 
   const id = tx(() => {
     const db = getDb();

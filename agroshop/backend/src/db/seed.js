@@ -23,10 +23,6 @@ const d = (offset = 0) => new Date(Date.now() + offset * 86400000).toISOString()
 
 // ---- settings + admin user -------------------------------------------------
 const setting = db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`);
-setting.run("shop_name", "Al-Falah Agri Traders");
-setting.run("shop_address", "Main Bazaar Road, Chichawatni, Sahiwal");
-setting.run("shop_phone", "0301-2345678");
-setting.run("shop_tagline", "Fertilizers • Pesticides • Seeds");
 setting.run("currency", "PKR");
 setting.run("print_mode", "a4");
 

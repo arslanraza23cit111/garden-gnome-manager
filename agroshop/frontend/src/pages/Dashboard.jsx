@@ -30,6 +30,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {data.show_backup_banner && (
+        <Alert
+          tone="info"
+          message={
+            "Automatic backups are disabled until a backup folder is set in Settings. " +
+            "Please configure a backup path to enable nightly database backups."
+          }
+        />
+      )}
       <header>
         <h1 className="text-xl font-semibold text-slate-800">Dashboard</h1>
         <p className="text-sm text-slate-500">Shop position for {data.date}</p>

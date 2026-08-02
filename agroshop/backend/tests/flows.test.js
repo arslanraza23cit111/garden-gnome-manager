@@ -16,6 +16,7 @@ process.env.AGROSHOP_DB_FILE = tmp;
 const { createApp } = await import("../src/app.js");
 const { getDb, closeDb } = await import("../src/db/connection.js");
 const { hashPassword } = await import("../src/lib/auth.js");
+const { runScheduledBackupOnce } = await import("../src/lib/backupScheduler.js");
 const ledger = await import("../src/services/ledgerService.js");
 const { stockByProduct, totalStockValue } = await import("../src/services/stockService.js");
 
@@ -215,6 +216,26 @@ test("purchase increases stock and supplier payable", async () => {
   assert.equal(bal("cash"), -2000);
 });
 
+test("duplicate purchase invoice numbers are rejected", async () => {
+  const first = await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: 1, batch_number: "DUP-1", expiry_date: "2030-01-01", quantity: 1, rate: 100 }],
+  });
+  assert.equal(first.status, 201);
+
+  const duplicate = await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    invoice_number: first.body.invoice_number,
+    paid_amount: 0,
+    items: [{ product_id: 1, batch_number: "DUP-2", expiry_date: "2030-01-01", quantity: 1, rate: 100 }],
+  });
+  assert.equal(duplicate.status, 400);
+  assert.match(duplicate.body.error, /Invoice number .* already exists/i);
+});
+
 test("purchasing 2 large units adds their exact base quantity", async () => {
   const productId = createProduct("Bagged Urea Multi", "g", 4000, 4500);
   const unit = await post(`/products/${productId}/units`, {
@@ -374,6 +395,62 @@ test("sale decreases stock and raises customer receivable", async () => {
   assert.equal(stockOf(1), before - 10);
   // total 1300, paid 1000 -> customer owes 300
   assert.equal(bal("customer", 1), 300);
+});
+
+test("duplicate sale invoice numbers are rejected", async () => {
+  const first = await post("/sales", {
+    customer_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: 1, quantity: 1, rate: 130 }],
+  });
+  assert.equal(first.status, 201);
+
+  const duplicate = await post("/sales", {
+    customer_id: 1,
+    date: today,
+    invoice_number: first.body.invoice_number,
+    paid_amount: 0,
+    items: [{ product_id: 1, quantity: 1, rate: 130 }],
+  });
+  assert.equal(duplicate.status, 400);
+  assert.match(duplicate.body.error, /Invoice number .* already exists/i);
+});
+
+test("scheduled backups create a file and keep only 7 backups", async () => {
+  const backupFolder = path.join(path.dirname(tmp), "scheduled-backups");
+  fs.rmSync(backupFolder, { recursive: true, force: true });
+  fs.mkdirSync(backupFolder, { recursive: true });
+
+  const settings = getDb();
+  const set = settings.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`);
+  set.run("last_backup_path", backupFolder);
+
+  const oldNames = Array.from({ length: 8 }, (_, i) =>
+    `agroshop-backup-2026-01-0${Math.floor(i / 2) + 1}T00-00-0${i}.db`,
+  );
+  for (const name of oldNames) fs.writeFileSync(path.join(backupFolder, name), "old backup");
+
+  const result = await runScheduledBackupOnce();
+  assert.equal(result.status, "success");
+  assert.equal(result.folder, backupFolder);
+  assert.ok(fs.existsSync(result.destination));
+
+  const backupFiles = fs
+    .readdirSync(backupFolder)
+    .filter((name) => name.startsWith("agroshop-backup-"))
+    .sort();
+  assert.equal(backupFiles.length, 7);
+  assert.ok(backupFiles.includes(path.basename(result.destination)));
+  assert.equal(
+    getDb().prepare(`SELECT value FROM settings WHERE key = ?`).get("last_auto_backup_status").value,
+    "success",
+  );
+  assert.equal(
+    getDb().prepare(`SELECT value FROM settings WHERE key = ?`).get("last_auto_backup_at").value,
+    result.timestamp,
+  );
+  assert.ok(!backupFiles.includes(oldNames[0]));
 });
 
 test("selling loose units deducts exact base quantity and rejects over-selling", async () => {

@@ -3,6 +3,7 @@ import { getDb } from "../db/connection.js";
 import * as ledger from "../services/ledgerService.js";
 import { stockByProduct, totalStockValue } from "../services/stockService.js";
 import { today, monthStart, round2, num } from "../lib/util.js";
+import { SHOP_NAME, SHOP_ADDRESS, SHOP_PHONE, SHOP_EMAIL } from "../lib/shopIdentity.js";
 
 const router = Router();
 
@@ -242,9 +243,14 @@ router.get("/", (_req, res) => {
 
   const customerOutstanding = ledger.outstanding("customer").reduce((s, r) => s + r.balance, 0);
   const supplierPayable = ledger.outstanding("supplier").reduce((s, r) => s + r.balance, 0);
+  const settings = Object.fromEntries(getDb().prepare(`SELECT key, value FROM settings`).all().map((r) => [r.key, r.value]));
+  const backupFolderConfigured = Boolean(settings.last_backup_path);
+  const showBackupBanner = !backupFolderConfigured && ["admin", "manager"].includes(req.user?.role);
 
   res.json({
     date: d,
+    show_backup_banner: showBackupBanner,
+    backup_folder_configured: backupFolderConfigured,
     today_sale: round2(todaySale.t),
     today_cash_sale: round2(todaySale.paid),
     today_credit_sale: round2(todaySale.credit),
@@ -278,10 +284,20 @@ router.get("/", (_req, res) => {
 router.get("/ledger/:account_type", (req, res) => {
   const { account_type } = req.params;
   const ref = req.query.ref ? num(req.query.ref) : null;
+  const db = getDb();
+  const settings = Object.fromEntries(db.prepare(`SELECT key, value FROM settings`).all().map((r) => [r.key, r.value]));
+  const shop = {
+    ...settings,
+    shop_name: SHOP_NAME,
+    shop_address: SHOP_ADDRESS,
+    shop_phone: SHOP_PHONE,
+    shop_email: SHOP_EMAIL,
+  };
   res.json({
     account_type,
     balance: ledger.balanceOf(account_type, ref),
     entries: ledger.statement(account_type, ref, { from: req.query.from, to: req.query.to }),
+    shop,
   });
 });
 
