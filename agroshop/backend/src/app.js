@@ -18,6 +18,7 @@ import reportsRoutes from "./routes/reports.js";
 import userRoutes from "./routes/users.js";
 import activityLogRoutes from "./routes/activityLog.js";
 import settingsRoutes from "./routes/settings.js";
+import { SHOP_NAME, SHOP_ADDRESS, SHOP_PHONE, SHOP_EMAIL, SHOP_TAGLINE } from "./lib/shopIdentity.js";
 
 const full = (...roles) => ({ full: ["admin", "manager", ...roles.flat()] });
 const fullRead = (writeRoles, readRoles) => ({
@@ -32,6 +33,16 @@ export function createApp() {
   app.use(express.json({ limit: "2mb" }));
 
   app.get("/api/health", (_req, res) => res.json({ ok: true, offline: true }));
+  // Public branding info (no auth): single source of truth is lib/shopIdentity.js.
+  app.get("/api/shop-identity", (_req, res) =>
+    res.json({
+      name: SHOP_NAME,
+      address: SHOP_ADDRESS,
+      phone: SHOP_PHONE,
+      email: SHOP_EMAIL,
+      tagline: SHOP_TAGLINE,
+    }),
+  );
   app.use("/api/auth", authRoutes);
 
   // Everything below requires a local sign-in.
