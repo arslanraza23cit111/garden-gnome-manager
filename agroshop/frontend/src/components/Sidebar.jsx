@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { clearSession, getUser } from "../api/client.js";
 import { canAccess } from "../lib/roles.js";
@@ -26,6 +27,14 @@ export default function Sidebar() {
   const user = getUser();
   const role = user?.role;
   const items = NAV.filter((item) => canAccess(role, item.area));
+  const [shop, setShop] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/shop-identity")
+      .then((res) => res.json())
+      .then(setShop)
+      .catch(() => {});
+  }, []);
 
   const logout = () => {
     clearSession();
@@ -35,8 +44,8 @@ export default function Sidebar() {
   return (
     <aside className="no-print flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-5 py-4">
-        <div className="text-lg font-semibold text-emerald-700">AgroShop</div>
-        <div className="text-xs text-slate-500">Fertilizer &amp; Pesticides</div>
+        <div className="text-lg font-semibold text-emerald-700">{shop?.name || "AgroShop"}</div>
+        <div className="text-xs text-slate-500">{shop?.tagline || "Fertilizer & Pesticides"}</div>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">

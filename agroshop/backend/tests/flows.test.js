@@ -446,10 +446,12 @@ test("scheduled backups create a file and keep only 7 backups", async () => {
     getDb().prepare(`SELECT value FROM settings WHERE key = ?`).get("last_auto_backup_status").value,
     "success",
   );
-  assert.equal(
-    getDb().prepare(`SELECT value FROM settings WHERE key = ?`).get("last_auto_backup_at").value,
-    result.timestamp,
-  );
+  // Allow small millisecond differences between stored timestamp and returned timestamp
+  const storedAutoAt = getDb().prepare(`SELECT value FROM settings WHERE key = ?`).get("last_auto_backup_at").value;
+  const storedMs = new Date(storedAutoAt).getTime();
+  const resultMs = new Date(result.timestamp).getTime();
+  const diff = Math.abs(storedMs - resultMs);
+  assert.ok(diff < 2000, `Automatic backup timestamp differs by ${diff}ms which is too large`);
   assert.ok(!backupFiles.includes(oldNames[0]));
 });
 

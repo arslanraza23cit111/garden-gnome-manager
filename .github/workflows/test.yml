@@ -20,25 +20,27 @@ jobs:
       - name: Use Node.js 22.23.1
         uses: actions/setup-node@v5
         with:
+          # Pin Node to the project's .nvmrc
+          node-version-file: '.nvmrc'
           node-version: '22.23.1'
+          # Explicitly set cache-dependency-path so setup-node can find lockfiles in agroshop/
           cache: 'npm'
+          cache-dependency-path: |
+            agroshop/backend/package-lock.json
+            agroshop/frontend/package-lock.json
 
       - name: Install backend dependencies
-        run: |
-          cd agroshop/backend
-          npm install
+        working-directory: agroshop/backend
+        run: npm install
 
       - name: Install frontend dependencies
-        run: |
-          cd agroshop/frontend
-          npm install
+        working-directory: agroshop/frontend
+        run: npm install
 
       - name: Run backend tests
-        run: |
-          cd agroshop
-          npm test
+        working-directory: agroshop/backend
+        run: npm test
 
       - name: Build frontend
-        run: |
-          cd agroshop
-          npm --prefix frontend run build
+        working-directory: agroshop
+        run: npm --prefix frontend run build

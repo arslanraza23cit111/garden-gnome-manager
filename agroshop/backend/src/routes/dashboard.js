@@ -192,7 +192,7 @@ router.get("/balance-sheet", (req, res) => {
   res.json(balanceSheet(req.query.as_of || today()));
 });
 
-router.get("/", (_req, res) => {
+router.get("/", (req, res) => {
   const d = today();
   const m = monthStart();
 
