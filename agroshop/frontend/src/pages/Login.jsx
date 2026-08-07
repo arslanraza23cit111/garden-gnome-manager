@@ -1,15 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sprout, WifiOff, Leaf, ShieldCheck } from "lucide-react";
 import { api, setSession } from "../api/client.js";
 import { Alert } from "../components/Modal.jsx";
-import { SHOP_NAME, SHOP_TAGLINE, SHOP_ADDRESS, SHOP_PHONE } from "../lib/shopIdentity.js";
+
 
 export default function Login() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Public branding comes from the backend so shopIdentity.js stays the single source of truth.
+  const [shop, setShop] = useState(null);
+
+  useEffect(() => {
+    api.get("/shop-identity").then(setShop).catch(() => setShop(null));
+  }, []);
 
   async function submit(e) {
     e.preventDefault();
@@ -43,12 +49,12 @@ export default function Login() {
           <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-50/15 ring-1 ring-brand-50/25">
             <Sprout size={24} />
           </span>
-          <h1 className="mt-8 text-3xl font-semibold leading-tight tracking-tight lg:text-4xl">{SHOP_NAME}</h1>
-          <p className="mt-3 max-w-sm text-sm text-brand-100/90">{SHOP_TAGLINE}</p>
+          <h1 className="mt-8 text-3xl font-semibold leading-tight tracking-tight lg:text-4xl">{shop?.name || "\u00a0"}</h1>
+          <p className="mt-3 max-w-sm text-sm text-brand-100/90">{shop?.tagline || "\u00a0"}</p>
           <p className="mt-8 max-w-xs text-xs leading-relaxed text-brand-100/70">
-            {SHOP_ADDRESS}
-            <br />
-            {SHOP_PHONE}
+            {shop?.address}
+            {shop?.address && <br />}
+            {shop?.phone}
           </p>
         </div>
         <ul className="relative mt-10 space-y-3 text-xs text-brand-100/85">
