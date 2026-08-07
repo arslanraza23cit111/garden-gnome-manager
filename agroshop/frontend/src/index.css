@@ -31,9 +31,22 @@
   .card {
     @apply rounded-xl border border-slate-200 bg-white shadow-sm;
   }
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-slate-900;
+  }
+  .page-subtitle {
+    @apply mt-1 text-sm text-slate-500;
+  }
+  .section-title {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500;
+  }
+  .panel-title {
+    @apply flex items-center gap-2 text-sm font-semibold text-slate-800;
+  }
   .label {
     @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500;
   }
+
   .input {
     @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800
       outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
