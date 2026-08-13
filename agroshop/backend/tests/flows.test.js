@@ -397,6 +397,46 @@ test("sale decreases stock and raises customer receivable", async () => {
   assert.equal(bal("customer", 1), 300);
 });
 
+// Transport details tests
+test("sale can be created with transport details", async () => {
+  const r = await post("/sales", {
+    customer_id: 1,
+    date: today,
+    paid_amount: 0,
+    payment_method: "cash",
+    transport_method: "vehicle",
+    vehicle_number: "ABC-123",
+    driver_name: "John Driver",
+    driver_cnic: "11111-1111111-1",
+    items: [{ product_id: 1, quantity: 1, rate: 130 }],
+  });
+  assert.equal(r.status, 201);
+  const fetched = await get(`/sales/${r.body.id}`);
+  assert.equal(fetched.status, 200);
+  assert.equal(fetched.body.transport_method, "vehicle");
+  assert.equal(fetched.body.vehicle_number, "ABC-123");
+  assert.equal(fetched.body.driver_name, "John Driver");
+  assert.equal(fetched.body.driver_cnic, "11111-1111111-1");
+});
+
+test("sale without transport details returns null transport fields", async () => {
+  const r = await post("/sales", {
+    customer_id: 1,
+    date: today,
+    paid_amount: 0,
+    payment_method: "cash",
+    items: [{ product_id: 1, quantity: 1, rate: 130 }],
+  });
+  assert.equal(r.status, 201);
+  const fetched = await get(`/sales/${r.body.id}`);
+  assert.equal(fetched.status, 200);
+  assert.equal(fetched.body.transport_method, null);
+  assert.equal(fetched.body.vehicle_number, null);
+  assert.equal(fetched.body.driver_name, null);
+  assert.equal(fetched.body.driver_cnic, null);
+  assert.equal(fetched.body.transport_notes, null);
+});
+
 test("duplicate sale invoice numbers are rejected", async () => {
   const first = await post("/sales", {
     customer_id: 1,

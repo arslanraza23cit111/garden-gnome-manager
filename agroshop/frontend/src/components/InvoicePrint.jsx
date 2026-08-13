@@ -152,6 +152,20 @@ function A4({ sale, shop, shopName }) {
         </div>
       </div>
 
+      {/* Transport details (A4 only) */}
+      {sale.transport_method && (
+        <div className="mt-4 text-sm text-slate-700">
+          {sale.transport_method === "vehicle" ? (
+            <div>
+              Transport: Vehicle {sale.vehicle_number || "—"} — Driver: {sale.driver_name || "—"}
+              {sale.driver_cnic ? ` (CNIC: ${sale.driver_cnic})` : ""}
+            </div>
+          ) : sale.transport_method === "other" && sale.transport_notes ? (
+            <div>Transport: {sale.transport_notes}</div>
+          ) : null}
+        </div>
+      )}
+
       <div className="mt-10 flex justify-between text-xs text-slate-500">
         <p>Goods once sold are not returnable without the original invoice.</p>
         <p className="border-t border-slate-400 pt-1">Authorised signature</p>
