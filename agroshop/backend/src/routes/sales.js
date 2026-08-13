@@ -167,7 +167,9 @@ router.post("/", (req, res) => {
     const info = db
       .prepare(
         `INSERT INTO sales (customer_id, invoice_number, date, total_amount, discount_amount,
-                            paid_amount, remaining_amount, payment_method, notes, created_by)
+                            paid_amount, remaining_amount, payment_method, notes,
+                            transport_method, vehicle_number, driver_name, driver_cnic, transport_notes,
+                            created_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
@@ -180,6 +182,11 @@ router.post("/", (req, res) => {
         remaining,
         method,
         body.notes ?? null,
+        body.transport_method ?? null,
+        body.vehicle_number ?? null,
+        body.driver_name ?? null,
+        body.driver_cnic ?? null,
+        body.transport_notes ?? null,
         req.user?.id ?? null,
       );
     const saleId = Number(info.lastInsertRowid);

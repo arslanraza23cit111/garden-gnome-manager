@@ -77,6 +77,9 @@ function Row({ label, value, strong }) {
 }
 
 function A4({ sale, shop, shopName }) {
+  const shopAddress = shop?.shop_address || "MADINA TRADERS NAWAN JANDAWALA SARGHODHA ROAD";
+  const shopPhone = shop?.shop_phone || "0308-7616000";
+  const shopEmail = shop?.shop_email || "rajputali78678690@gmail.com";
   return (
     <div className="mx-auto max-w-[190mm] bg-white p-6 text-[13px] text-slate-800">
       <div className="flex items-start justify-between border-b-2 border-slate-800 pb-3">
@@ -158,6 +161,9 @@ function A4({ sale, shop, shopName }) {
 }
 
 function Thermal({ sale, shopName, shop, width }) {
+  const shopAddress = shop?.shop_address || "MADINA TRADERS NAWAN JANDAWALA SARGHODHA ROAD";
+  const shopPhone = shop?.shop_phone || "0308-7616000";
+  const shopEmail = shop?.shop_email || "rajputali78678690@gmail.com";
   return (
     <div className={`mx-auto receipt ${width === 58 ? "receipt-58" : ""} bg-white p-2`}>
       <div className="text-center">

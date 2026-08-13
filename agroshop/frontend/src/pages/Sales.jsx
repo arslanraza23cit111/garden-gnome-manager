@@ -18,6 +18,9 @@ export default function Sales() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [invoice, setInvoice] = useState(null);
+  // Search query state for customer and product typeahead inputs
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [productQueries, setProductQueries] = useState({});
   const canEdit = canWrite(getUser()?.role, "sales");
 
   const load = () =>
@@ -49,6 +52,12 @@ export default function Sales() {
       paid_amount: "",
       notes: "",
       items: [emptyLine()],
+      // transport details (optional)
+      transport_method: "vehicle",
+      vehicle_number: "",
+      driver_name: "",
+      driver_cnic: "",
+      transport_notes: "",
     });
     setFormError("");
     setOpen(true);
@@ -183,14 +192,45 @@ export default function Sales() {
             <Alert message={formError} />
             <div className="grid gap-3 sm:grid-cols-4">
               <Field label="Customer" required>
-                <select className="input" value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })}>
-                  <option value="">Select…</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} {c.area ? `— ${c.area}` : ""}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    className="input"
+                    placeholder="Type to search customers…"
+                    value={
+                      customerQuery || (customers.find((c) => String(c.id) === String(form.customer_id))?.name ?? "")
+                    }
+                    onChange={(e) => {
+                      setCustomerQuery(e.target.value);
+                      setForm({ ...form, customer_id: "" });
+                    }}
+                    onBlur={() => setTimeout(() => setCustomerQuery(""), 150)}
+                  />
+                  {customerQuery && (
+                    <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded border bg-white shadow">
+                      <li className="px-2 py-1 text-xs text-slate-500">Matches</li>
+                      {customers
+                        .filter((c) =>
+                          (`${c.name} ${c.mobile ?? ""}`).toLowerCase().includes(customerQuery.toLowerCase()),
+                        )
+                        .map((c) => (
+                          <li
+                            key={c.id}
+                            className="cursor-pointer px-2 py-1 hover:bg-slate-100"
+                            onMouseDown={() => {
+                              setForm({ ...form, customer_id: c.id });
+                              setCustomerQuery("");
+                            }}
+                          >
+                            <div className="font-medium">{c.name}</div>
+                            <div className="text-xs text-slate-500">{[c.mobile, c.area].filter(Boolean).join(" — ")}</div>
+                          </li>
+                        ))}
+                      {customers.filter((c) => (`${c.name} ${c.mobile ?? ""}`).toLowerCase().includes(customerQuery.toLowerCase())).length === 0 && (
+                        <li className="px-2 py-1 text-xs text-slate-500">No matches</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
               </Field>
               <Field label="Invoice no." required>
                 <input className="input" value={form.invoice_number} onChange={(e) => setForm({ ...form, invoice_number: e.target.value })} />
@@ -200,7 +240,7 @@ export default function Sales() {
               </Field>
               <Field label="Payment method">
                 <select className="input" value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })}>
-                  {["cash", "bank", "cheque", "online", "credit"].map((m) => (
+                  {['cash', 'bank', 'cheque', 'online', 'credit'].map((m) => (
                     <option key={m} value={m}>
                       {m}
                     </option>
@@ -230,27 +270,49 @@ export default function Sales() {
                     return (
                       <tr key={i}>
                         <td className="min-w-[200px]">
-                          <select
-                            className="input"
-                            value={l.product_id}
-                            onChange={(e) => {
-                              const p = products.find((x) => String(x.id) === e.target.value);
-                              const units = (p?.units ?? []).filter((u) => u.is_active !== 0);
-                              const defaultUnit = units.find((u) => u.is_default) ?? units[0];
-                              setLine(i, {
-                                product_id: e.target.value,
-                                product_unit_id: defaultUnit?.id ?? "",
-                                rate: l.rate || defaultUnit?.sale_price || p?.sale_price || "",
-                              });
-                            }}
-                          >
-                            <option value="">Select…</option>
-                            {products.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} {p.packing_size ? `(${p.packing_size})` : ""}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="relative">
+                            <input
+                              className="input"
+                              placeholder="Type product name…"
+                              value={productQueries[i] ?? (products.find((p) => String(p.id) === String(l.product_id))?.name ?? "")}
+                              onChange={(e) => {
+                                const q = e.target.value;
+                                setProductQueries((s) => ({ ...s, [i]: q }));
+                                // clear product selection until user picks
+                                setLine(i, { product_id: "", product_unit_id: "", rate: "" });
+                              }}
+                              onBlur={() => setTimeout(() => setProductQueries((s) => ({ ...s, [i]: "" })), 150)}
+                            />
+
+                            {(productQueries[i] ?? "") !== "" && (
+                              <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded border bg-white shadow">
+                                {products
+                                  .filter((p) => (p.name || "").toLowerCase().includes((productQueries[i] ?? "").toLowerCase()))
+                                  .map((p) => (
+                                    <li
+                                      key={p.id}
+                                      className="cursor-pointer px-2 py-1 hover:bg-slate-100"
+                                      onMouseDown={() => {
+                                        const units = (p?.units ?? []).filter((u) => u.is_active !== 0);
+                                        const defaultUnit = units.find((u) => u.is_default) ?? units[0];
+                                        setLine(i, {
+                                          product_id: p.id,
+                                          product_unit_id: defaultUnit?.id ?? "",
+                                          rate: l.rate || defaultUnit?.sale_price || p?.sale_price || "",
+                                        });
+                                        setProductQueries((s) => ({ ...s, [i]: "" }));
+                                      }}
+                                    >
+                                      <div className="font-medium">{p.name}</div>
+                                      <div className="text-xs text-slate-500">{p.packing_size ?? ""}</div>
+                                    </li>
+                                  ))}
+                                {products.filter((p) => (p.name || "").toLowerCase().includes((productQueries[i] ?? "").toLowerCase())).length === 0 && (
+                                  <li className="px-2 py-1 text-xs text-slate-500">No matches</li>
+                                )}
+                              </ul>
+                            )}
+                          </div>
                         </td>
                         <td className="w-36">
                           <select
@@ -284,7 +346,7 @@ export default function Sales() {
                             <p className="mt-1 text-right text-[11px] text-slate-500">{baseEquivalent(l)}</p>
                           )}
                         </td>
-                        {["rate", "discount"].map((k) => (
+                        {['rate', 'discount'].map((k) => (
                           <td key={k} className="w-24">
                             <input
                               className="input text-right"
@@ -339,6 +401,55 @@ export default function Sales() {
                   <span>Goes on credit</span>
                   <span className="tabular-nums">{money(remaining)}</span>
                 </div>
+              </div>
+              
+              {/* Transport details (optional) */}
+              <div className="sm:col-span-3">
+                <details className="rounded border bg-white p-3">
+                  <summary className="cursor-pointer font-semibold">Transport details (optional)</summary>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-4">
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="transport_method"
+                          checked={form.transport_method === "vehicle"}
+                          onChange={() => setForm({ ...form, transport_method: "vehicle" })}
+                        />
+                        Vehicle
+                      </label>
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="transport_method"
+                          checked={form.transport_method === "other"}
+                          onChange={() => setForm({ ...form, transport_method: "other" })}
+                        />
+                        Other / Self-pickup
+                      </label>
+                    </div>
+
+                    {form.transport_method === "vehicle" ? (
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <Field label="Vehicle number">
+                          <input className="input" value={form.vehicle_number} onChange={(e) => setForm({ ...form, vehicle_number: e.target.value })} />
+                        </Field>
+                        <Field label="Driver name">
+                          <input className="input" value={form.driver_name} onChange={(e) => setForm({ ...form, driver_name: e.target.value })} />
+                        </Field>
+                        <Field label="Driver CNIC">
+                          <input className="input" value={form.driver_cnic} onChange={(e) => setForm({ ...form, driver_cnic: e.target.value })} />
+                        </Field>
+                      </div>
+                    ) : (
+                      <div>
+                        <Field label="Transport notes">
+                          <input className="input" value={form.transport_notes} onChange={(e) => setForm({ ...form, transport_notes: e.target.value })} />
+                        </Field>
+                      </div>
+                    )}
+                  </div>
+                </details>
               </div>
             </div>
           </div>

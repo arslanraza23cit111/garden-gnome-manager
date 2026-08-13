@@ -103,6 +103,13 @@ function migrateUnits(db) {
   addColumn(db, "sale_items", "quantity_in_unit REAL");
   addColumn(db, "sale_items", "quantity_base INTEGER");
 
+  // Transport / delivery details on sales (nullable; migration-safe)
+  addColumn(db, "sales", "transport_method TEXT");
+  addColumn(db, "sales", "vehicle_number TEXT");
+  addColumn(db, "sales", "driver_name TEXT");
+  addColumn(db, "sales", "driver_cnic TEXT");
+  addColumn(db, "sales", "transport_notes TEXT");
+
   const products = db.prepare(`SELECT * FROM products`).all();
   for (const product of products) {
     const mapping = unitMigrationFactor(product.unit);
