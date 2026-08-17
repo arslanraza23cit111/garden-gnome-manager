@@ -129,11 +129,20 @@ router.post("/purchase-returns", (req, res) => {
     const returnId = Number(info.lastInsertRowid);
 
     const stmt = db.prepare(
-      `INSERT INTO purchase_return_items (purchase_return_id, product_id, batch_number, quantity, rate, line_total)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO purchase_return_items (purchase_return_id, purchase_item_id, product_id, batch_number, quantity, quantity_base, rate, line_total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const line of lines) {
-      stmt.run(returnId, line.product_id, line.batch_number, line.quantity, line.rate, line.line_total);
+      stmt.run(
+        returnId,
+        line.purchase_item_id,
+        line.product_id,
+        line.batch_number,
+        line.quantity,
+        line.quantity_base,
+        line.rate,
+        line.line_total,
+      );
       decreaseStockFromBatch({
         product_id: line.product_id,
         batch_number: line.batch_number,
@@ -242,11 +251,21 @@ router.post("/sale-returns", (req, res) => {
     const returnId = Number(info.lastInsertRowid);
 
     const stmt = db.prepare(
-      `INSERT INTO sale_return_items (sale_return_id, product_id, batch_number, expiry_date, quantity, rate, line_total)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sale_return_items (sale_return_id, sale_item_id, product_id, batch_number, expiry_date, quantity, quantity_base, rate, line_total)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const line of lines) {
-      stmt.run(returnId, line.product_id, line.batch_number, line.expiry_date, line.quantity, line.rate, line.line_total);
+      stmt.run(
+        returnId,
+        line.sale_item_id,
+        line.product_id,
+        line.batch_number,
+        line.expiry_date,
+        line.quantity,
+        line.quantity_base,
+        line.rate,
+        line.line_total,
+      );
       restoreStock({
         product_id: line.product_id,
         batch_number: line.batch_number,

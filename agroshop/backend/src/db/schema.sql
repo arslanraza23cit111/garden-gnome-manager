@@ -171,9 +171,11 @@ CREATE TABLE IF NOT EXISTS purchase_returns (
 CREATE TABLE IF NOT EXISTS purchase_return_items (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,
   purchase_return_id INTEGER NOT NULL REFERENCES purchase_returns(id) ON DELETE CASCADE,
+  purchase_item_id   INTEGER REFERENCES purchase_items(id),
   product_id         INTEGER NOT NULL REFERENCES products(id),
   batch_number       TEXT NOT NULL DEFAULT '-',
   quantity           REAL NOT NULL,
+  quantity_base      REAL NOT NULL DEFAULT 0,
   rate               REAL NOT NULL,
   line_total         REAL NOT NULL
 );
@@ -192,10 +194,12 @@ CREATE TABLE IF NOT EXISTS sale_returns (
 CREATE TABLE IF NOT EXISTS sale_return_items (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   sale_return_id INTEGER NOT NULL REFERENCES sale_returns(id) ON DELETE CASCADE,
+  sale_item_id   INTEGER REFERENCES sale_items(id),
   product_id     INTEGER NOT NULL REFERENCES products(id),
   batch_number   TEXT NOT NULL DEFAULT '-',
   expiry_date    TEXT,
   quantity       REAL NOT NULL,
+  quantity_base  REAL NOT NULL DEFAULT 0,
   rate           REAL NOT NULL,
   line_total     REAL NOT NULL
 );
