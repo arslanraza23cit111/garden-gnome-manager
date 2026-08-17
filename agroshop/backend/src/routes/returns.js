@@ -74,6 +74,20 @@ router.post("/purchase-returns", (req, res) => {
       .all(purchase.id)
       .map((row) => [row.id, row]),
   );
+  const purchaseItemIds = [...new Set(items.map((entry) => Number(entry.purchase_item_id)).filter(Number.isFinite))];
+  const alreadyReturnedByPurchaseItem = new Map(
+    purchaseItemIds.length
+      ? db
+          .prepare(
+            `SELECT purchase_item_id, COALESCE(SUM(quantity_base), 0) AS returned_base
+               FROM purchase_return_items
+              WHERE purchase_item_id IN (${purchaseItemIds.map(() => "?").join(", ")})
+              GROUP BY purchase_item_id`,
+          )
+          .all(...purchaseItemIds)
+          .map((row) => [Number(row.purchase_item_id), Number(row.returned_base || 0)])
+      : [],
+  );
 
   const lines = items.map((entry, idx) => {
     const purchaseItem = purchaseItems.get(Number(entry.purchase_item_id));
@@ -81,11 +95,13 @@ router.post("/purchase-returns", (req, res) => {
     const qty = num(entry.quantity);
     const conversionFactor = effectiveConversionFactor(purchaseItem);
     const originalBase = Number(purchaseItem.quantity_base || purchaseItem.quantity);
+    const alreadyReturned = alreadyReturnedByPurchaseItem.get(purchaseItem.id) || 0;
+    const remainingBase = Math.max(0, originalBase - alreadyReturned);
     const qtyBase = Math.round(qty * conversionFactor);
     if (!(qty > 0)) throw new ValidationError(`Line ${idx + 1}: quantity must be greater than zero`);
-    if (qtyBase > originalBase)
+    if (qtyBase > remainingBase)
       throw new ValidationError(
-        `Line ${idx + 1}: cannot return ${qtyBase} of ${originalBase} purchased`,
+        `Line ${idx + 1}: cannot return ${qtyBase} of ${remainingBase} remaining purchased`,
       );
     return {
       purchase_item_id: purchaseItem.id,
@@ -169,6 +185,20 @@ router.post("/sale-returns", (req, res) => {
       .all(sale.id)
       .map((row) => [row.id, row]),
   );
+  const saleItemIds = [...new Set(items.map((entry) => Number(entry.sale_item_id)).filter(Number.isFinite))];
+  const alreadyReturnedBySaleItem = new Map(
+    saleItemIds.length
+      ? db
+          .prepare(
+            `SELECT sale_item_id, COALESCE(SUM(quantity_base), 0) AS returned_base
+               FROM sale_return_items
+              WHERE sale_item_id IN (${saleItemIds.map(() => "?").join(", ")})
+              GROUP BY sale_item_id`,
+          )
+          .all(...saleItemIds)
+          .map((row) => [Number(row.sale_item_id), Number(row.returned_base || 0)])
+      : [],
+  );
 
   const lines = items.map((entry, idx) => {
     const saleItem = saleItems.get(Number(entry.sale_item_id));
@@ -176,10 +206,12 @@ router.post("/sale-returns", (req, res) => {
     const qty = num(entry.quantity);
     const conversionFactor = effectiveConversionFactor(saleItem);
     const originalBase = Number(saleItem.quantity_base || saleItem.quantity);
+    const alreadyReturned = alreadyReturnedBySaleItem.get(saleItem.id) || 0;
+    const remainingBase = Math.max(0, originalBase - alreadyReturned);
     const qtyBase = Math.round(qty * conversionFactor);
     if (!(qty > 0)) throw new ValidationError(`Line ${idx + 1}: quantity must be greater than zero`);
-    if (qtyBase > originalBase)
-      throw new ValidationError(`Line ${idx + 1}: cannot return ${qtyBase} of ${originalBase} sold`);
+    if (qtyBase > remainingBase)
+      throw new ValidationError(`Line ${idx + 1}: cannot return ${qtyBase} of ${remainingBase} remaining sold`);
 
     const batch = saleItem.batch_id
       ? db.prepare(`SELECT * FROM product_batches WHERE id = ?`).get(saleItem.batch_id)
