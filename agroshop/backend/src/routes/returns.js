@@ -266,13 +266,16 @@ router.post("/sale-returns", (req, res) => {
         line.rate,
         line.line_total,
       );
+      // Never pass a rate here — sale returns must preserve the batch's original purchase cost, not the sale price.
+      // This was a real production-valuation bug once (stock value inflated by using sale price instead of cost).
+      // See flows.test.js's return-valuation regression test.
       restoreStock({
         product_id: line.product_id,
         batch_number: line.batch_number,
         expiry_date: line.expiry_date,
         quantity: line.quantity_base,
-        rate: line.rate,
       });
+
     }
 
     ledger.post(
