@@ -82,7 +82,27 @@ npm run seed:reset
 Deletes the database file and rebuilds it with fresh demo data. **Never run this
 on real shop data.**
 
-## 5. Tests
+## 5. Switching between Electron and normal development
+
+`better-sqlite3` has one compiled native binary, and it must match the runtime
+you are about to use. The Electron and plain Node builds are mutually exclusive:
+mixing them up produces a native-module ABI mismatch error, not an app bug.
+
+Before regular development commands such as `npm test` or `npm start`, run this
+if you have recently run `electron:rebuild`:
+
+```bash
+npm run rebuild:node
+```
+
+Before Electron commands such as `npx electron .` or `npm run electron:build`,
+run:
+
+```bash
+npm run electron:rebuild
+```
+
+## 6. Tests
 
 ```bash
 npm test
@@ -100,7 +120,7 @@ non-negotiable rules:
 - payments and expenses post to cash/bank and party balances correctly
 - total debit always equals total credit in `ledger_entries`
 
-## 6. What is built (Phase 1 + Phase 2 MVP)
+## 7. What is built (Phase 1 + Phase 2 MVP)
 
 | Module          | Status                                                              |
 | --------------- | ------------------------------------------------------------------- |
@@ -124,7 +144,7 @@ screens, not migrations.
 
 Planned: Phase 3 accounts, roles, backup · Phase 4 reports and analytics.
 
-## 7. How the money and stock rules are enforced
+## 8. How the money and stock rules are enforced
 
 - Stock quantity lives **only** in `product_batches`, per batch + expiry. No
   total-quantity column on `products`, and no screen lets you type a stock number.
@@ -137,7 +157,7 @@ Planned: Phase 3 accounts, roles, backup · Phase 4 reports and analytics.
 - `ledgerService.post()` refuses an unbalanced set of entries, so the books
   cannot go out of balance even by a rounding error.
 
-## 8. Folder layout
+## 9. Folder layout
 
 ```
 agroshop/
@@ -158,7 +178,7 @@ agroshop/
       App.jsx, main.jsx, index.css
 ```
 
-## 9. Printing
+## 10. Printing
 
 Open any sale → **Invoice**. One dialog, two layouts:
 
@@ -168,7 +188,7 @@ Open any sale → **Invoice**. One dialog, two layouts:
 Both print through the browser dialog; pick the right printer there. No PDF
 service, no internet.
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Symptom                                        | Fix                                                                    |
 | ---------------------------------------------- | ---------------------------------------------------------------------- |
