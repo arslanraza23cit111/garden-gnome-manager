@@ -170,7 +170,7 @@ router.post("/", (req, res) => {
                             paid_amount, remaining_amount, payment_method, notes,
                             transport_method, vehicle_number, driver_name, driver_cnic, transport_notes,
                             created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         customer.id,

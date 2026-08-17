@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { money, qty } from "../api/client.js";
 
@@ -12,6 +13,11 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
   const [printMode, setPrintMode] = useState(mode);
 
   useEffect(() => {
+    document.body.classList.add("printing-invoice");
+    return () => document.body.classList.remove("printing-invoice");
+  }, []);
+
+  useEffect(() => {
     document.body.classList.toggle("print-thermal-mode", printMode === "thermal");
     return () => document.body.classList.remove("print-thermal-mode");
   }, [printMode]);
@@ -21,6 +27,12 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
   const shopAddress = shop?.shop_address || "MADINA TRADERS NAWAN JANDAWALA SARGHODHA ROAD";
   const shopPhone = shop?.shop_phone || "0308-7616000";
   const shopEmail = shop?.shop_email || "rajputali78678690@gmail.com";
+  const invoiceContent =
+    printMode === "a4" ? (
+      <A4 sale={sale} shop={shop} shopName={shopName} />
+    ) : (
+      <Thermal sale={sale} shopName={shopName} shop={shop} width={width} />
+    );
 
   return (
     <div>
@@ -48,10 +60,12 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
         </button>
       </div>
 
-      {printMode === "a4" ? (
-        <A4 sale={sale} shop={shop} shopName={shopName} />
-      ) : (
-        <Thermal sale={sale} shopName={shopName} shop={shop} width={width} />
+      {invoiceContent}
+      {createPortal(
+        <div className="invoice-print-portal" aria-hidden="true">
+          {invoiceContent}
+        </div>,
+        document.body
       )}
     </div>
   );

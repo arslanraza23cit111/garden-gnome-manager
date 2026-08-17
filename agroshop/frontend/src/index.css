@@ -79,10 +79,22 @@
 .print-only {
   display: none;
 }
+.invoice-print-portal,
+.statement-print-portal {
+  display: none;
+}
 
 @media print {
   body {
     background: #fff;
+  }
+  body.printing-invoice > #root,
+  body.printing-statement > #root {
+    display: none !important;
+  }
+  body.printing-invoice .invoice-print-portal,
+  body.printing-statement .statement-print-portal {
+    display: block !important;
   }
   .no-print {
     display: none !important;
