@@ -99,6 +99,8 @@ router.post("/", (req, res) => {
   const lines = items.map((it, idx) => {
     const unitSnapshot = resolvePurchaseUnit(getDb(), it, idx);
     const qty = unitSnapshot.quantity_in_unit;
+    if (it.rate === undefined || it.rate === null || it.rate === "" || !Number.isFinite(Number(it.rate)))
+      throw new ValidationError(`Line ${idx + 1}: rate is required and must be a valid number`);
     const rate = num(it.rate);
     if (!(qty > 0)) throw new ValidationError(`Line ${idx + 1}: quantity must be greater than zero`);
     if (!(unitSnapshot.quantity_base > 0)) throw new ValidationError(`Line ${idx + 1}: base quantity must be greater than zero`);
