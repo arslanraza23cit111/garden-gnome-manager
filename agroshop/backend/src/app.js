@@ -1,5 +1,8 @@
 import express from "express";
 import cors from "cors";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { getDb } from "./db/connection.js";
 import { requireAuth, requireRouteRole, requireRole } from "./lib/auth.js";
 import authRoutes from "./routes/auth.js";
@@ -19,6 +22,10 @@ import userRoutes from "./routes/users.js";
 import activityLogRoutes from "./routes/activityLog.js";
 import settingsRoutes from "./routes/settings.js";
 import { SHOP_NAME, SHOP_ADDRESS, SHOP_PHONE, SHOP_EMAIL, SHOP_TAGLINE } from "./lib/shopIdentity.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FRONTEND_DIST = path.resolve(__dirname, "../../frontend/dist");
+const FRONTEND_INDEX = path.join(FRONTEND_DIST, "index.html");
 
 const full = (...roles) => ({ full: ["admin", "manager", ...roles.flat()] });
 const fullRead = (writeRoles, readRoles) => ({
@@ -65,6 +72,11 @@ export function createApp() {
   app.use("/api/settings", requireAuth, settingsRoutes);
 
   app.use("/api", (_req, res) => res.status(404).json({ error: "Unknown endpoint" }));
+
+  if (fs.existsSync(FRONTEND_INDEX)) {
+    app.use(express.static(FRONTEND_DIST));
+    app.get("*", (_req, res) => res.sendFile(FRONTEND_INDEX));
+  }
 
   // Single error shape for the frontend.
   app.use((err, _req, res, _next) => {
