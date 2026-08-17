@@ -716,6 +716,76 @@ test("returning 7 kg from a 70 kg batch leaves 63 kg", async () => {
   assert.equal(stockOf(productId), 63);
 });
 
+// Return-valuation regression test: a sale return must NOT overwrite the batch's
+// purchase cost with the sale price (that inflated stock valuation in production once).
+test("sale return preserves the batch purchase cost, not the sale price", async () => {
+  const productId = createProduct("Valuation Guard DAP", "kg", 100, 130);
+  const bag = await post(`/products/${productId}/units`, {
+    unit_label: "50kg bag",
+    conversion_factor: 50,
+    sale_price: 6500,
+    is_default: true,
+  });
+  assert.equal(bag.status, 201);
+  const loose = await post(`/products/${productId}/units`, {
+    unit_label: "kg",
+    conversion_factor: 1,
+    sale_price: 130,
+  });
+  assert.equal(loose.status, 201);
+
+  const purchase = await post("/purchases", {
+    supplier_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [
+      {
+        product_id: productId,
+        product_unit_id: bag.body.id,
+        quantity_in_unit: 2,
+        batch_number: "VAL-GUARD",
+        expiry_date: "2030-01-01",
+        rate: 5000,
+      },
+    ],
+  });
+  assert.equal(purchase.status, 201);
+  assert.equal(stockOf(productId), 100);
+  const batchOf = () => getDb().prepare(`SELECT * FROM product_batches WHERE product_id = ?`).get(productId);
+  const valueOf = () =>
+    getDb()
+      .prepare(`SELECT COALESCE(SUM(quantity * purchase_rate),0) v FROM product_batches WHERE product_id = ?`)
+      .get(productId).v;
+  assert.equal(batchOf().purchase_rate, 100);
+  assert.equal(valueOf(), 10000);
+
+  const sale = await post("/sales", {
+    customer_id: 1,
+    date: today,
+    paid_amount: 0,
+    items: [{ product_id: productId, product_unit_id: loose.body.id, quantity_in_unit: 5, rate: 130 }],
+  });
+  assert.equal(sale.status, 201);
+  assert.equal(stockOf(productId), 95);
+
+  const saleItemId = getDb()
+    .prepare(`SELECT id FROM sale_items WHERE sale_id = ? ORDER BY id LIMIT 1`)
+    .get(sale.body.id).id;
+  const returned = await post("/sale-returns", {
+    sale_id: sale.body.id,
+    date: today,
+    reason: "Return valuation regression",
+    items: [{ sale_item_id: saleItemId, quantity: 5 }],
+  });
+  assert.equal(returned.status, 201);
+
+  assert.equal(stockOf(productId), 100);
+  assert.equal(batchOf().purchase_rate, 100, "batch cost must stay at purchase cost, not the sale price");
+  assert.equal(valueOf(), 10000, "stock value must be 10000, not 13000");
+});
+
+
+
 test("sale return increases stock and reduces customer outstanding", async () => {
   const sale = await post("/sales", {
     customer_id: 1,
