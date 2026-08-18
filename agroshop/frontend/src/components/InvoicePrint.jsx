@@ -22,6 +22,26 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
     return () => document.body.classList.remove("print-thermal-mode");
   }, [printMode]);
 
+  useEffect(() => {
+    const styleId = "print-page-size";
+    let style = document.getElementById(styleId);
+
+    if (!style) {
+      style = document.createElement("style");
+      style.id = styleId;
+      document.head.appendChild(style);
+    }
+
+    style.textContent =
+      printMode === "thermal"
+        ? "@media print { @page { size: 80mm auto; margin: 2mm; } }"
+        : "@media print { @page { size: A4; margin: 12mm; } }";
+
+    return () => {
+      style.remove();
+    };
+  }, [printMode]);
+
   if (!sale) return null;
   const shopName = shop?.shop_name || "MADINA TRADERS";
   const shopAddress = shop?.shop_address || "MADINA TRADERS NAWAN JANDAWALA SARGHODHA ROAD";

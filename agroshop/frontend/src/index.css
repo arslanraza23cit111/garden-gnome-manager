@@ -125,11 +125,4 @@
     /* thermal rolls have no fixed page height */
     width: auto;
   }
-  body.print-thermal-mode .receipt {
-    page: thermal-receipt;
-  }
-  @page thermal-receipt {
-    size: 80mm auto;
-    margin: 2mm;
-  }
 }
