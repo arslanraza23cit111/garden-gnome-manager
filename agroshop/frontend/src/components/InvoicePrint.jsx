@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
-import { money, qty } from "../api/client.js";
+import { api, money, qty } from "../api/client.js";
 
 /**
  * One print action, two layouts:
@@ -11,6 +11,7 @@ import { money, qty } from "../api/client.js";
  */
 export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
   const [printMode, setPrintMode] = useState(mode);
+  const [usbPrintState, setUsbPrintState] = useState({ loading: false, message: "", error: "" });
 
   useEffect(() => {
     document.body.classList.add("printing-invoice");
@@ -42,6 +43,14 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
     };
   }, [printMode]);
 
+  useEffect(() => {
+    if (!usbPrintState.message) return undefined;
+    const timeout = window.setTimeout(() => {
+      setUsbPrintState((current) => ({ ...current, message: "" }));
+    }, 2500);
+    return () => window.clearTimeout(timeout);
+  }, [usbPrintState.message]);
+
   if (!sale) return null;
   const shopName = shop?.shop_name || "MADINA TRADERS";
   const shopAddress = shop?.shop_address || "MADINA TRADERS NAWAN JANDAWALA SARGHODHA ROAD";
@@ -53,6 +62,15 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
     ) : (
       <Thermal sale={sale} shopName={shopName} shop={shop} width={width} />
     );
+  const printViaUsb = async () => {
+    setUsbPrintState({ loading: true, message: "", error: "" });
+    try {
+      await api.post(`/sales/${sale.id}/print-thermal`, { width });
+      setUsbPrintState({ loading: false, message: "Printed ✓", error: "" });
+    } catch (err) {
+      setUsbPrintState({ loading: false, message: "", error: err.message });
+    }
+  };
 
   return (
     <div>
@@ -78,6 +96,15 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
         <button className="btn-primary" onClick={() => window.print()}>
           <Printer size={16} /> Print
         </button>
+        {printMode === "thermal" && (
+          <>
+            <button className="btn-primary" onClick={printViaUsb} disabled={usbPrintState.loading}>
+              <Printer size={16} /> {usbPrintState.loading ? "Printing..." : "Print via USB (auto-cut)"}
+            </button>
+            {usbPrintState.message && <span className="text-sm font-medium text-emerald-700">{usbPrintState.message}</span>}
+            {usbPrintState.error && <span className="text-sm font-medium text-red-600">{usbPrintState.error}</span>}
+          </>
+        )}
       </div>
 
       {invoiceContent}

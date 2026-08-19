@@ -5,8 +5,44 @@ import * as ledger from "../services/ledgerService.js";
 import { ValidationError, required, num, round2, today, nextInvoiceNumber } from "../lib/util.js";
 import { logActivity } from "../lib/auth.js";
 import { SHOP_NAME, SHOP_ADDRESS, SHOP_PHONE, SHOP_EMAIL } from "../lib/shopIdentity.js";
+import { getSetting, THERMAL_PRINTER_NAME_KEY, DEFAULT_THERMAL_PRINTER_NAME } from "../lib/settings.js";
+import { buildReceiptBuffer } from "../lib/escpos.js";
+import { sendRawToPrinter } from "../lib/rawPrint.js";
 
 const router = Router();
+const money = (n) =>
+  new Intl.NumberFormat("en-PK", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(
+    Number(n || 0),
+  );
+const qty = (n) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Number(n || 0));
+
+function getSaleWithReceiptDetails(id) {
+  const db = getDb();
+  const sale = db
+    .prepare(
+      `SELECT s.*, c.name AS customer_name, c.mobile AS customer_mobile,
+              c.address AS customer_address, c.area AS customer_area
+         FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.id = ?`,
+    )
+    .get(id);
+  if (!sale) return null;
+  const items = db
+    .prepare(
+      `SELECT i.*, p.name AS product_name, p.unit, p.packing_size, p.company
+         FROM sale_items i JOIN products p ON p.id = i.product_id
+        WHERE i.sale_id = ?`,
+    )
+    .all(sale.id);
+  const settings = Object.fromEntries(db.prepare(`SELECT key, value FROM settings`).all().map((r) => [r.key, r.value]));
+  const shop = {
+    ...settings,
+    shop_name: SHOP_NAME,
+    shop_address: SHOP_ADDRESS,
+    shop_phone: SHOP_PHONE,
+    shop_email: SHOP_EMAIL,
+  };
+  return { ...sale, items, shop };
+}
 
 function resolveSaleUnit(db, item, idx) {
   const hasMultiUnitInput = item.product_unit_id !== undefined || item.quantity_in_unit !== undefined;
@@ -63,31 +99,26 @@ router.get("/", (req, res) => {
 router.get("/next-invoice", (_req, res) => res.json({ invoice_number: nextInvoiceNumber("sales", "SAL") }));
 
 router.get("/:id", (req, res) => {
-  const db = getDb();
-  const sale = db
-    .prepare(
-      `SELECT s.*, c.name AS customer_name, c.mobile AS customer_mobile,
-              c.address AS customer_address, c.area AS customer_area
-         FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.id = ?`,
-    )
-    .get(req.params.id);
+  const sale = getSaleWithReceiptDetails(req.params.id);
   if (!sale) return res.status(404).json({ error: "Sale not found" });
-  const items = db
-    .prepare(
-      `SELECT i.*, p.name AS product_name, p.unit, p.packing_size, p.company
-         FROM sale_items i JOIN products p ON p.id = i.product_id
-        WHERE i.sale_id = ?`,
-    )
-    .all(sale.id);
-  const settings = Object.fromEntries(db.prepare(`SELECT key, value FROM settings`).all().map((r) => [r.key, r.value]));
-  const shop = {
-    ...settings,
-    shop_name: SHOP_NAME,
-    shop_address: SHOP_ADDRESS,
-    shop_phone: SHOP_PHONE,
-    shop_email: SHOP_EMAIL,
-  };
-  res.json({ ...sale, items, shop });
+  res.json(sale);
+});
+
+router.post("/:id/print-thermal", async (req, res) => {
+  const sale = getSaleWithReceiptDetails(req.params.id);
+  if (!sale) return res.status(404).json({ error: "Sale not found" });
+
+  const { shop, ...saleDetails } = sale;
+  const width = req.body?.width === 58 ? 58 : 80;
+  const printerName = getSetting(THERMAL_PRINTER_NAME_KEY) || DEFAULT_THERMAL_PRINTER_NAME;
+
+  try {
+    const buffer = buildReceiptBuffer({ sale: saleDetails, shop, width, money, qty });
+    await sendRawToPrinter(printerName, buffer);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: `Printing failed: ${err.message}` });
+  }
 });
 
 /**

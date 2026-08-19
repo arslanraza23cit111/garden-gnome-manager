@@ -6,6 +6,8 @@ export const LAST_BACKUP_PATH_KEY = "last_backup_path";
 export const LAST_AUTO_BACKUP_KEY = "last_auto_backup_at";
 export const LAST_AUTO_BACKUP_STATUS_KEY = "last_auto_backup_status";
 export const LAST_AUTO_BACKUP_ERROR_KEY = "last_auto_backup_error";
+export const THERMAL_PRINTER_NAME_KEY = "thermal_printer_name";
+export const DEFAULT_THERMAL_PRINTER_NAME = "POS-80";
 
 const PROTECTED_IDENTITY_KEYS = new Set([
   "shop_name",

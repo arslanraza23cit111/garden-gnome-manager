@@ -1,7 +1,17 @@
 import { Router } from "express";
 import path from "node:path";
 import { ValidationError, required } from "../lib/util.js";
-import { getSetting, setSetting, LAST_BACKUP_KEY, LAST_BACKUP_PATH_KEY, LAST_AUTO_BACKUP_KEY, LAST_AUTO_BACKUP_STATUS_KEY, LAST_AUTO_BACKUP_ERROR_KEY } from "../lib/settings.js";
+import {
+  getSetting,
+  setSetting,
+  LAST_BACKUP_KEY,
+  LAST_BACKUP_PATH_KEY,
+  LAST_AUTO_BACKUP_KEY,
+  LAST_AUTO_BACKUP_STATUS_KEY,
+  LAST_AUTO_BACKUP_ERROR_KEY,
+  THERMAL_PRINTER_NAME_KEY,
+  DEFAULT_THERMAL_PRINTER_NAME,
+} from "../lib/settings.js";
 import { runBackupToFolder } from "../lib/backup.js";
 
 const router = Router();
@@ -29,6 +39,17 @@ router.post("/backup", (req, res) => {
   } catch (err) {
     throw new ValidationError(`Backup failed: ${err.message}`);
   }
+});
+
+router.get("/thermal-printer", (_req, res) => {
+  res.json({ printerName: getSetting(THERMAL_PRINTER_NAME_KEY) || DEFAULT_THERMAL_PRINTER_NAME });
+});
+
+router.put("/thermal-printer", (req, res) => {
+  const name = String(req.body?.printerName ?? "").trim();
+  required(name, "Printer name");
+  setSetting(THERMAL_PRINTER_NAME_KEY, name);
+  res.json({ printerName: name });
 });
 
 export default router;
