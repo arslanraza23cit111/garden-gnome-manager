@@ -93,7 +93,11 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
         </button>
       </div>
 
-      {invoiceContent}
+      {printMode === "thermal" ? (
+        <div ref={thermalRef}>{invoiceContent}</div>
+      ) : (
+        invoiceContent
+      )}
       {createPortal(
         <div className="invoice-print-portal" aria-hidden="true">
           {invoiceContent}
