@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { money, qty } from "../api/client.js";
+
+const PX_PER_MM = 96 / 25.4;
+const THERMAL_HEIGHT_BUFFER_MM = 8;
 
 /**
  * One print action, two layouts:
