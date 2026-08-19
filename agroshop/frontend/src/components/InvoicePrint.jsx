@@ -14,6 +14,7 @@ const THERMAL_HEIGHT_BUFFER_MM = 8;
  */
 export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
   const [printMode, setPrintMode] = useState(mode);
+  const thermalRef = useRef(null);
 
   useEffect(() => {
     document.body.classList.add("printing-invoice");
