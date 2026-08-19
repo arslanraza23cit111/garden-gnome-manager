@@ -124,7 +124,6 @@ export function buildReceiptBuffer({ sale, shop, width = 80, money, qty }) {
   line(tagline || "Thank you - visit again");
   if (tagline) line("Thank you - visit again");
   line();
-  line();
   write(bytes(0x1d, 0x56, 0x42, 0x03));
 
   return Buffer.concat(chunks);
