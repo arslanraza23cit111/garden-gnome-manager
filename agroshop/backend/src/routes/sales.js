@@ -21,8 +21,12 @@ function getSaleWithReceiptDetails(id) {
   const sale = db
     .prepare(
       `SELECT s.*, c.name AS customer_name, c.mobile AS customer_mobile,
-              c.address AS customer_address, c.area AS customer_area
-         FROM sales s JOIN customers c ON c.id = s.customer_id WHERE s.id = ?`,
+              c.address AS customer_address, c.area AS customer_area,
+              u.full_name AS created_by_name
+         FROM sales s
+         JOIN customers c ON c.id = s.customer_id
+         LEFT JOIN users u ON u.id = s.created_by
+        WHERE s.id = ?`,
     )
     .get(id);
   if (!sale) return null;
