@@ -36,15 +36,24 @@ export default function InvoicePrint({ sale, shop, mode = "a4", width = 80 }) {
       document.head.appendChild(style);
     }
 
-    style.textContent =
-      printMode === "thermal"
-        ? "@media print { @page { size: 80mm auto; margin: 2mm; } }"
-        : "@media print { @page { size: A4; margin: 12mm; } }";
+    const applyPageSize = () => {
+      if (printMode === "thermal") {
+        const heightPx = thermalRef.current?.scrollHeight || 300;
+        const heightMm = Math.round(heightPx / PX_PER_MM + THERMAL_HEIGHT_BUFFER_MM);
+        style.textContent = `@media print { @page { size: 80mm ${heightMm}mm; margin: 2mm; } }`;
+      } else {
+        style.textContent = "@media print { @page { size: A4; margin: 12mm; } }";
+      }
+    };
+
+    applyPageSize();
+    window.addEventListener("beforeprint", applyPageSize);
 
     return () => {
+      window.removeEventListener("beforeprint", applyPageSize);
       style.remove();
     };
-  }, [printMode]);
+  }, [printMode, sale, shop, width]);
 
   if (!sale) return null;
   const shopName = shop?.shop_name || "MADINA TRADERS";
