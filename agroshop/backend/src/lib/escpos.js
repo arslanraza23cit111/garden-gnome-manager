@@ -4,7 +4,15 @@
 const CHARS_PER_LINE = { 58: 32, 80: 48 };
 
 const bytes = (...values) => Buffer.from(values);
-const text = (value) => Buffer.from(String(value ?? ""), "latin1");
+const sanitizeText = (value) =>
+  String(value ?? "")
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u00A0/g, " ")
+    .replace(/[^\x20-\x7E]/g, "?");
+const text = (value) => Buffer.from(sanitizeText(value), "latin1");
 
 export function row(left, right, width) {
   const rightText = String(right ?? "");
@@ -60,8 +68,7 @@ export function buildReceiptBuffer({ sale, shop, width = 80, money, qty }) {
 
   write(bytes(0x1b, 0x61, 0x01));
   line("Thank you - visit again");
-  write(bytes(0x1b, 0x64, 0x03));
-  write(bytes(0x1d, 0x56, 0x01));
+  write(bytes(0x1d, 0x56, 0x42, 0x03));
 
   return Buffer.concat(chunks);
 }
