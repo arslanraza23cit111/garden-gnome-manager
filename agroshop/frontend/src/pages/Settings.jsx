@@ -12,20 +12,31 @@ export default function Settings() {
   const [autoLast, setAutoLast] = useState(null);
   const [autoStatus, setAutoStatus] = useState(null);
   const [autoError, setAutoError] = useState("");
+  const [thermalPrinterName, setThermalPrinterName] = useState("");
+  const [printerBusy, setPrinterBusy] = useState(false);
+  const [printerError, setPrinterError] = useState("");
+  const [printerSuccess, setPrinterSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const load = () =>
-    api
-      .get("/settings/backup/last")
-      .then((r) => {
-        setLast(r?.lastBackupAt || null);
-        setAutoLast(r?.lastAutoBackupAt || null);
-        setAutoStatus(r?.lastAutoBackupStatus || null);
-        setAutoError(r?.lastAutoBackupError || "");
-      })
-      .catch((e) => setError(e.message));
+  const load = async () => {
+    try {
+      const [backup, printer] = await Promise.all([
+        api.get("/settings/backup/last"),
+        api.get("/settings/thermal-printer"),
+      ]);
+      if (backup) {
+        setLast(backup.lastBackupAt || null);
+        setAutoLast(backup.lastAutoBackupAt || null);
+        setAutoStatus(backup.lastAutoBackupStatus || null);
+        setAutoError(backup.lastAutoBackupError || "");
+      }
+      setThermalPrinterName(printer?.printerName || "");
+    } catch (e) {
+      setError(e.message);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -45,6 +56,21 @@ export default function Settings() {
       setError(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function saveThermalPrinter() {
+    setPrinterError("");
+    setPrinterSuccess("");
+    setPrinterBusy(true);
+    try {
+      const res = await api.put("/settings/thermal-printer", { printerName: thermalPrinterName });
+      setThermalPrinterName(res.printerName);
+      setPrinterSuccess("Thermal printer name saved.");
+    } catch (e) {
+      setPrinterError(e.message);
+    } finally {
+      setPrinterBusy(false);
     }
   }
 
@@ -105,6 +131,26 @@ export default function Settings() {
       </div>
 
       <div className="card space-y-4 p-5">
+        <Field
+          label="Thermal printer name"
+          hint="Must exactly match the printer's name in Windows Settings > Printers & scanners."
+        >
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              className="input"
+              value={thermalPrinterName}
+              onChange={(e) => setThermalPrinterName(e.target.value)}
+              placeholder="POS-80"
+            />
+            <button className="btn btn-secondary shrink-0" onClick={saveThermalPrinter} disabled={printerBusy}>
+              {printerBusy ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </Field>
+
+        <Alert message={printerError} tone="error" />
+        <Alert message={printerSuccess} tone="success" />
+
         <Field
           label="Backup destination folder"
           required
