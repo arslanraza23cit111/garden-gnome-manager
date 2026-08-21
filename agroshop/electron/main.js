@@ -1,6 +1,13 @@
 const path = require("node:path");
 const { app, BrowserWindow } = require("electron");
 
+process.on('uncaughtException', (err) => {
+  require('fs').appendFileSync(
+    require('path').join(__dirname, '..', 'crash.log'),
+    new Date().toISOString() + ' ' + String(err.stack || err) + '\n'
+  );
+});
+
 const PORT = Number(process.env.PORT || 5174);
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "admin123";
