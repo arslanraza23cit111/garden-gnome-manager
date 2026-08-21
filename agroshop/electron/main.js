@@ -6,6 +6,7 @@ const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "admin123";
 
 let server;
+let mainWindow;
 
 async function startBackend() {
   process.env.AGROSHOP_DATA_DIR = path.join(app.getPath("userData"), "data");
@@ -42,7 +43,7 @@ function seedFirstRunAdmin(db, hashPassword) {
 }
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1024,
@@ -54,7 +55,11 @@ function createWindow() {
     },
   });
 
-  win.loadURL(`http://localhost:${PORT}`);
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+
+  mainWindow.loadURL(`http://localhost:${PORT}`);
 }
 
 app.whenReady().then(async () => {

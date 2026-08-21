@@ -26,7 +26,13 @@
       "electron/**/*",
       "backend/src/**/*",
       "backend/package.json",
-      "backend/node_modules/**/*",
+      {
+        "from": "backend/node_modules",
+        "to": "backend/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      },
       "frontend/dist/**/*",
       "package.json"
     ],
